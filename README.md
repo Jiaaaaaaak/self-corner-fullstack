@@ -14,6 +14,8 @@ AI Classroom is an intelligent interactive teaching system integrating:
 - 🔐 Authentication & session management
 - 🎙️ STT / TTS voice interaction
 - 🗄️ Postgres + Redis data layer
+- 📖 [專案分工對照表 (點此查看)](./docs/WBS.md)
+- 📖 [專案開發規則 (點此查看)](./docs/teamrules.md)
 
 ---
 
