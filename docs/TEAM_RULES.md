@@ -1,4 +1,4 @@
-# 專案合作與貢獻指南 (CONTRIBUTING)
+# 專案合作指南 (CONTRIBUTING)
 
 這是 **AI-Classroom** 專案！為了確保專案代碼品質及版本控制的穩定，請所有成員遵守以下開發流程。
 
