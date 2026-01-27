@@ -122,7 +122,7 @@ Used for:
 ### 1️⃣ Clone Repository
 
 ```bash
-git clone <repo-url>
+git clone https://github.com/AIPE02-team04/ai-classroom.git
 cd ai-classroom
 ```
 
