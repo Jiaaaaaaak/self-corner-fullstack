@@ -56,6 +56,26 @@ This folder represents the **core business logic layer**.
 
 ---
 
+### 🔹 DB/
+
+Database: **PostgreSQL**
+
+This folder contains SQL scripts for database schema definition and management.
+
+#### 📁 Contents
+
+- `create_tables.sql` — table schema definitions
+- `init_data.sql` — initial seed data
+- `constraints.sql` — foreign keys and constraints
+
+#### 📊 Tables
+
+Total Tables: **5**
+- Table 1: User's...
+- Table 2: User's...
+
+---
+
 ### 🔹 frontend/
 
 React-based client application.
