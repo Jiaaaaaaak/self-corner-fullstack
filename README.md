@@ -24,6 +24,7 @@ AI Classroom is an intelligent interactive teaching system integrating:
 ```
 project-root/
 ├── backend/            # FastAPI backend application
+├── DB/                 # PostgreSQL
 ├── frontend/           # React frontend application
 ├── infrastructure/     # Docker & deployment configuration
 ├── docs/               # Documentation & development logs
