@@ -1,0 +1,166 @@
+"""
+API Layer - Session Endpoints
+建立/結束 Session，結束時同步觸發教練分析
+"""
+import uuid
+import json
+import re
+import os
+from fastapi import APIRouter, Depends, HTTPException, Cookie, status
+from pydantic import BaseModel
+from typing import Optional
+from sqlalchemy.ext.asyncio import AsyncSession
+from langchain_openai import ChatOpenAI
+
+from database import get_db
+from services.db_manager import DBManager
+from core.session_manager import SessionManager
+from core.auth_module import decode_access_token
+from agents.prompts import COACH_PROMPT
+
+router = APIRouter(prefix="/session", tags=["Session"])
+
+coach_llm = ChatOpenAI(
+    model=os.getenv("COACH_MODEL", "gpt-4o"),
+    temperature=0.2,
+)
+
+
+# =============================================================================
+# 依賴：取得當前 user_id（從 Cookie 中的 access_token）
+# =============================================================================
+
+async def get_current_user_id(
+    access_token: Optional[str] = Cookie(default=None, alias="access_token"),
+) -> int:
+    if not access_token:
+        raise HTTPException(status_code=401, detail="未登入")
+    payload = decode_access_token(access_token)
+    if not payload:
+        raise HTTPException(status_code=401, detail="Token 無效")
+    return int(payload["sub"])
+
+
+# =============================================================================
+# Pydantic Models
+# =============================================================================
+
+class SessionCreateRequest(BaseModel):
+    scenario_id: int
+    title: Optional[str] = None
+
+
+class SessionResponse(BaseModel):
+    session_uuid: str
+    title: Optional[str]
+    livekit_room_name: str
+    scenario_id: Optional[int]
+    personality_id: Optional[int]
+    is_active: bool
+    started_at: str
+
+
+# =============================================================================
+# Endpoints
+# =============================================================================
+
+@router.post("/create", response_model=SessionResponse, status_code=status.HTTP_201_CREATED)
+async def create_session(
+    body: SessionCreateRequest,
+    db: AsyncSession = Depends(get_db),
+    user_id: int = Depends(get_current_user_id),
+):
+    db_manager = DBManager(db)
+
+    # 驗證情境存在
+    scenario = await db_manager.get_scenario_by_id(body.scenario_id)
+    if not scenario:
+        raise HTTPException(status_code=404, detail="情境不存在")
+
+    # 隨機選取學生個性
+    personality = await db_manager.get_random_personality()
+    personality_id = personality.id if personality else None
+
+    # 建立 LiveKit 房間名稱
+    livekit_room_name = f"self-corner-{uuid.uuid4().hex[:10]}"
+
+    session_manager = SessionManager(db)
+    session_data = await session_manager.create_session(
+        user_id=user_id,
+        scenario_id=body.scenario_id,
+        personality_id=personality_id,
+        title=body.title or scenario.title,
+        livekit_room_name=livekit_room_name,
+    )
+
+    return SessionResponse(
+        session_uuid=session_data["session_uuid"],
+        title=session_data["title"],
+        livekit_room_name=session_data["livekit_room_name"],
+        scenario_id=session_data["scenario_id"],
+        personality_id=session_data["personality_id"],
+        is_active=session_data["is_active"],
+        started_at=session_data["started_at"].isoformat(),
+    )
+
+
+@router.post("/{session_uuid}/end")
+async def end_session(
+    session_uuid: str,
+    db: AsyncSession = Depends(get_db),
+    user_id: int = Depends(get_current_user_id),
+):
+    """
+    結束 Session，同步執行以下步驟：
+    1. 標記 Session 為已結束
+    2. 取得完整逐字稿
+    3. 呼叫教練 LLM 生成 FeedbackReport
+    4. 儲存報告至資料庫
+    """
+    db_manager = DBManager(db)
+    session = await db_manager.get_session_by_uuid(session_uuid)
+    if not session:
+        raise HTTPException(status_code=404, detail="Session 不存在")
+    if session.user_id != user_id:
+        raise HTTPException(status_code=403, detail="無權操作此 Session")
+
+    # 1. 結束 Session
+    session_manager = SessionManager(db)
+    await session_manager.end_session(session_uuid)
+
+    # 2. 取得逐字稿
+    transcripts = await db_manager.get_session_transcripts(session.id)
+    if not transcripts:
+        return {"status": "ended", "report_ready": False, "message": "無對話紀錄，跳過報告生成"}
+
+    # 3. 組裝對話歷史字串
+    conversation_history = "\n".join(
+        f"{'老師' if t.speaker == 'teacher' else '學生'}：{t.text}"
+        for t in transcripts
+    )
+
+    # 4. 呼叫教練 LLM
+    prompt = COACH_PROMPT.format(conversation_history=conversation_history)
+    try:
+        response = await coach_llm.ainvoke(prompt)
+        raw = response.content.strip()
+        # 去除 LLM 可能包裹的 Markdown code fence
+        raw = re.sub(r"^```(?:json)?\s*\n?", "", raw)
+        raw = re.sub(r"\n?```\s*$", "", raw).strip()
+        print(f"[Coach LLM] Raw response (first 200 chars): {raw[:200]}")
+        report_data = json.loads(raw)
+    except Exception as e:
+        print(f"[Coach LLM Error] {e}")
+        print(f"[Coach LLM Error] Raw content: {getattr(response, 'content', 'N/A')[:500]}")
+        return {"status": "ended", "report_ready": False, "message": "報告生成失敗"}
+
+    # 5. 儲存 FeedbackReport
+    await db_manager.create_feedback_report(
+        session_id=session.id,
+        sel_scores=report_data.get("sel_scores", {}),
+        feedback_text=report_data.get("feedback", ""),
+        analysis_text=report_data.get("analysis", ""),
+        selected_kist_cards=report_data.get("selected_kist_cards", []),
+    )
+
+    return {"status": "ended", "report_ready": True}

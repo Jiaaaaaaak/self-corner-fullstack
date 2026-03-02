@@ -1,0 +1,267 @@
+"""
+Services Layer - Database Manager
+封裝所有資料庫 CRUD 操作
+"""
+import uuid
+import random
+from datetime import datetime
+from typing import Optional, List, Dict, Any
+from sqlalchemy import select, update, func
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from models import (
+    User, RefreshToken, Session, Scenario, StudentPersonality,
+    Conversation, Transcript, EmotionLog, FeedbackReport, AgentType
+)
+
+
+class DBManager:
+    def __init__(self, db_session: AsyncSession):
+        self.db = db_session
+
+    # =========================================================================
+    # User CRUD
+    # =========================================================================
+
+    async def get_user_by_username(self, username: str) -> Optional[User]:
+        result = await self.db.execute(select(User).where(User.username == username))
+        return result.scalar_one_or_none()
+
+    async def get_user_by_email(self, email: str) -> Optional[User]:
+        result = await self.db.execute(select(User).where(User.email == email))
+        return result.scalar_one_or_none()
+
+    async def get_user_by_id(self, user_id: int) -> Optional[User]:
+        result = await self.db.execute(select(User).where(User.id == user_id))
+        return result.scalar_one_or_none()
+
+    async def create_user(
+        self,
+        username: str,
+        email: str,
+        hashed_password: str,
+        first_name: Optional[str] = None,
+        last_name: Optional[str] = None,
+    ) -> User:
+        user = User(
+            username=username,
+            email=email,
+            hashed_password=hashed_password,
+            first_name=first_name,
+            last_name=last_name,
+        )
+        self.db.add(user)
+        await self.db.flush()
+        await self.db.refresh(user)
+        return user
+
+    async def get_user_session_count(self, user_id: int) -> int:
+        result = await self.db.execute(
+            select(func.count()).where(Session.user_id == user_id)
+        )
+        return result.scalar_one() or 0
+
+    # =========================================================================
+    # Refresh Token CRUD
+    # =========================================================================
+
+    async def create_refresh_token(
+        self, user_id: int, token: str, expires_at: datetime
+    ) -> RefreshToken:
+        rt = RefreshToken(user_id=user_id, token=token, expires_at=expires_at)
+        self.db.add(rt)
+        await self.db.flush()
+        return rt
+
+    async def get_refresh_token(self, token: str) -> Optional[RefreshToken]:
+        result = await self.db.execute(
+            select(RefreshToken).where(RefreshToken.token == token)
+        )
+        return result.scalar_one_or_none()
+
+    async def revoke_refresh_token(self, token: str) -> None:
+        await self.db.execute(
+            update(RefreshToken)
+            .where(RefreshToken.token == token)
+            .values(is_revoked=True)
+        )
+        await self.db.flush()
+
+    async def revoke_all_user_tokens(self, user_id: int) -> None:
+        await self.db.execute(
+            update(RefreshToken)
+            .where(RefreshToken.user_id == user_id)
+            .values(is_revoked=True)
+        )
+        await self.db.flush()
+
+    # =========================================================================
+    # Scenario CRUD
+    # =========================================================================
+
+    async def get_all_scenarios(self) -> List[Scenario]:
+        result = await self.db.execute(
+            select(Scenario).where(Scenario.is_active == True)
+        )
+        return list(result.scalars().all())
+
+    async def get_scenario_by_id(self, scenario_id: int) -> Optional[Scenario]:
+        result = await self.db.execute(
+            select(Scenario).where(Scenario.id == scenario_id)
+        )
+        return result.scalar_one_or_none()
+
+    # =========================================================================
+    # StudentPersonality CRUD
+    # =========================================================================
+
+    async def get_random_personality(self) -> Optional[StudentPersonality]:
+        result = await self.db.execute(select(StudentPersonality))
+        personalities = list(result.scalars().all())
+        if not personalities:
+            return None
+        return random.choice(personalities)
+
+    async def get_personality_by_id(self, pid: int) -> Optional[StudentPersonality]:
+        result = await self.db.execute(
+            select(StudentPersonality).where(StudentPersonality.id == pid)
+        )
+        return result.scalar_one_or_none()
+
+    # =========================================================================
+    # Session CRUD
+    # =========================================================================
+
+    async def create_session(
+        self,
+        user_id: int,
+        scenario_id: Optional[int] = None,
+        personality_id: Optional[int] = None,
+        title: Optional[str] = None,
+        livekit_room_name: Optional[str] = None,
+    ) -> Session:
+        session = Session(
+            session_uuid=str(uuid.uuid4()),
+            user_id=user_id,
+            scenario_id=scenario_id,
+            personality_id=personality_id,
+            title=title or "未命名練習",
+            livekit_room_name=livekit_room_name,
+            is_active=True,
+            started_at=datetime.utcnow(),
+        )
+        self.db.add(session)
+        await self.db.flush()
+        await self.db.refresh(session)
+        return session
+
+    async def get_session_by_uuid(self, session_uuid: str) -> Optional[Session]:
+        result = await self.db.execute(
+            select(Session).where(Session.session_uuid == session_uuid)
+        )
+        return result.scalar_one_or_none()
+
+    async def get_sessions_by_user(self, user_id: int) -> List[Session]:
+        result = await self.db.execute(
+            select(Session)
+            .where(Session.user_id == user_id)
+            .order_by(Session.started_at.desc())
+        )
+        return list(result.scalars().all())
+
+    async def end_session(self, session_id: int) -> None:
+        await self.db.execute(
+            update(Session)
+            .where(Session.id == session_id)
+            .values(is_active=False, ended_at=datetime.utcnow())
+        )
+        await self.db.flush()
+
+    # =========================================================================
+    # Transcript CRUD
+    # =========================================================================
+
+    async def create_transcript(
+        self,
+        session_id: int,
+        speaker: str,
+        text: str,
+        source: str = "realtime",
+        duration_ms: Optional[int] = None,
+    ) -> Transcript:
+        t = Transcript(
+            session_id=session_id,
+            speaker=speaker,
+            text=text,
+            source=source,
+            duration_ms=duration_ms,
+        )
+        self.db.add(t)
+        await self.db.flush()
+        await self.db.refresh(t)
+        return t
+
+    async def get_session_transcripts(self, session_id: int) -> List[Transcript]:
+        result = await self.db.execute(
+            select(Transcript)
+            .where(Transcript.session_id == session_id)
+            .order_by(Transcript.timestamp.asc())
+        )
+        return list(result.scalars().all())
+
+    # =========================================================================
+    # EmotionLog CRUD
+    # =========================================================================
+
+    async def create_emotion_log(
+        self, session_id: int, turn_number: int, teacher_input: str, scores: dict
+    ) -> EmotionLog:
+        log = EmotionLog(
+            session_id=session_id,
+            turn_number=turn_number,
+            teacher_input=teacher_input,
+            happy=scores.get("HAPPY", 0.0),
+            sad=scores.get("SAD", 0.0),
+            angry=scores.get("ANGRY", 0.0),
+            surprised=scores.get("SURPRISED", 0.0),
+            anxious=scores.get("ANXIOUS", 0.0),
+            frustrated=scores.get("FRUSTRATED", 0.0),
+            confident=scores.get("CONFIDENT", 0.0),
+            curious=scores.get("CURIOUS", 0.0),
+            neutral=scores.get("NEUTRAL", 0.0),
+        )
+        self.db.add(log)
+        await self.db.flush()
+        return log
+
+    # =========================================================================
+    # FeedbackReport CRUD
+    # =========================================================================
+
+    async def create_feedback_report(
+        self,
+        session_id: int,
+        sel_scores: dict,
+        feedback_text: str,
+        analysis_text: str,
+        selected_kist_cards: list,
+    ) -> FeedbackReport:
+        report = FeedbackReport(
+            session_id=session_id,
+            sel_scores=sel_scores,
+            feedback_text=feedback_text,
+            analysis_text=analysis_text,
+            selected_kist_cards=selected_kist_cards,
+        )
+        self.db.add(report)
+        await self.db.flush()
+        await self.db.refresh(report)
+        return report
+
+    async def get_feedback_report_by_session(
+        self, session_id: int
+    ) -> Optional[FeedbackReport]:
+        result = await self.db.execute(
+            select(FeedbackReport).where(FeedbackReport.session_id == session_id)
+        )
+        return result.scalar_one_or_none()
