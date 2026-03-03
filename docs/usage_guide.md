@@ -29,10 +29,29 @@
 
 ## 2. 安裝與初始化
 
-### 2.1 複製環境變數範本
+### 2.1 建立後端虛擬環境
 
 ```bash
-cd SELf-Corner
+cd backend
+python -m venv venv
+```
+
+啟動虛擬環境：
+
+```bash
+# macOS / Linux
+source venv/bin/activate
+
+# Windows
+venv\Scripts\activate
+```
+
+> 啟動後終端機提示符會出現 `(venv)` 前綴，後續所有 Python 指令皆在此環境中執行。
+
+### 2.2 複製後端環境變數範本
+
+```bash
+# 仍在 backend/ 目錄下
 cp .env.example .env
 ```
 
@@ -47,19 +66,20 @@ DATABASE_URL=postgresql+asyncpg://postgres:password@localhost:5432/your_db
 JWT_SECRET_KEY=your_random_secret_key
 ```
 
-### 2.2 建立 PostgreSQL 資料庫
+### 2.3 建立 PostgreSQL 資料庫
 
 ```sql
 CREATE DATABASE self_corner;
 ```
 
-### 2.3 安裝後端依賴
+### 2.4 安裝後端依賴
 
 ```bash
+# 確認虛擬環境已啟動（(venv) 前綴）
 pip install -r requirements.txt
 ```
 
-### 2.4 初始化資料庫並匯入初始資料
+### 2.5 初始化資料庫並匯入初始資料
 
 ```bash
 # 建立所有資料表 + 預填 10 個情境與 5 種學生個性
@@ -74,16 +94,21 @@ python seed_data.py
 [Seed] Done.
 ```
 
-### 2.5 安裝前端依賴
+### 2.6 安裝前端依賴
 
 ```bash
-cd front_end
+cd ../frontend
 npm install
 ```
 
-### 2.6 設定前端環境變數
+### 2.7 複製前端環境變數範本
 
-`front_end/.env` 已預設如下（可依實際部署修改）：
+```bash
+# 在 frontend/ 目錄下
+cp .env.example .env
+```
+
+編輯 `frontend/.env`（可依實際部署修改）：
 
 ```
 VITE_API_URL=http://localhost:8000
@@ -99,7 +124,8 @@ VITE_LIVEKIT_URL=wss://your-project.livekit.cloud
 ### Terminal 1 — FastAPI 後端
 
 ```bash
-cd SELf-Corner
+cd backend
+source venv/bin/activate  # Windows: venv\Scripts\activate
 python main.py
 ```
 
@@ -110,7 +136,8 @@ python main.py
 ### Terminal 2 — LiveKit Agent Worker
 
 ```bash
-cd SELf-Corner
+cd backend
+source venv/bin/activate  # Windows: venv\Scripts\activate
 python -m agents.voice_pipeline dev
 ```
 
@@ -119,7 +146,7 @@ python -m agents.voice_pipeline dev
 ### Terminal 3 — 前端開發伺服器
 
 ```bash
-cd SELf-Corner/front_end
+cd frontend
 npm run dev
 ```
 
@@ -239,19 +266,19 @@ npm run dev
 **A**：請確認：
 1. Terminal 2 的 LiveKit Agent Worker 已啟動且無錯誤
 2. 瀏覽器已授權麥克風存取權限
-3. `.env` 中的 `LIVEKIT_URL`、`LIVEKIT_API_KEY`、`LIVEKIT_API_SECRET` 與 LiveKit Cloud 專案設定一致
+3. `backend/.env` 中的 `LIVEKIT_URL`、`LIVEKIT_API_KEY`、`LIVEKIT_API_SECRET` 與 LiveKit Cloud 專案設定一致
 
 ### Q：結束對話後回饋頁顯示「尚無回饋報告」？
 
 **A**：請確認：
-1. `.env` 中的 `OPENAI_API_KEY` 有效且有 `gpt-4o` 存取權限
+1. `backend/.env` 中的 `OPENAI_API_KEY` 有效且有 `gpt-4o` 存取權限
 2. 對話中有產生至少一筆逐字稿（需有實際語音或文字輸入）
 3. 後端 Terminal 1 無錯誤訊息
 
 ### Q：登入後重新整理頁面被導回登入頁？
 
 **A**：登入狀態透過 `localStorage` 持久化（Zustand persist），正常不會遺失。若發生此問題：
-1. 確認後端 `JWT_SECRET_KEY` 在每次重啟後保持一致（在 `.env` 中固定設定，而非自動生成）
+1. 確認後端 `JWT_SECRET_KEY` 在每次重啟後保持一致（在 `backend/.env` 中固定設定，而非自動生成）
 2. 清除瀏覽器 `localStorage` 重新登入
 
 ### Q：`seed_data.py` 執行後提示「already exist, skipping」？
@@ -260,9 +287,10 @@ npm run dev
 
 ### Q：如何新增自訂情境或學生個性？
 
-**A**：直接編輯 `seed_data.py` 中的 `SCENARIOS` 或 `STUDENT_PERSONALITIES` 列表，然後在資料庫中手動新增：
-```python
-# 執行後會跳過已有資料，需先清空對應資料表
+**A**：直接編輯 `backend/seed_data.py` 中的 `SCENARIOS` 或 `STUDENT_PERSONALITIES` 列表，然後重新執行：
+```bash
+cd backend
+source venv/bin/activate  # Windows: venv\Scripts\activate
 python seed_data.py
 ```
 或直接透過 PostgreSQL 工具（如 pgAdmin）手動插入。
@@ -271,11 +299,11 @@ python seed_data.py
 
 **A**：最常見原因是 Agent Worker 的 `session.update` 報錯，導致 `input_audio_transcription` 設定沒有生效。請確認：
 1. Agent Worker 終端機有無 `[OpenAI Event] error` 訊息
-2. 若有，通常是 `agents/prompts.py` 的 `TOOLS_SCHEMA` 格式錯誤（Realtime API 格式與 Chat Completions API 不同，不可使用 `"function": {...}` 嵌套）
+2. 若有，通常是 `backend/agents/prompts.py` 的 `TOOLS_SCHEMA` 格式錯誤（Realtime API 格式與 Chat Completions API 不同，不可使用 `"function": {...}` 嵌套）
 
 ### Q：Agent Worker 結束時出現 `TypeError: a coroutine was expected, got None`？
 
-**A**：此錯誤為非致命性（功能不受影響），但應修正。原因是 `ctx.add_shutdown_callback()` 需要傳入 async 函數，若傳入普通 lambda 會觸發此錯誤。請確認 `voice_pipeline.py` 的 shutdown callback 使用 `async def`。
+**A**：此錯誤為非致命性（功能不受影響），但應修正。原因是 `ctx.add_shutdown_callback()` 需要傳入 async 函數，若傳入普通 lambda 會觸發此錯誤。請確認 `backend/agents/voice_pipeline.py` 的 shutdown callback 使用 `async def`。
 
 ### Q：登入時出現 `ValueError: password cannot be longer than 72 bytes` 或驗證失敗？
 
@@ -287,4 +315,4 @@ pip install "bcrypt==4.0.1"  # 若不符合則重新安裝
 
 ---
 
-*SELf-Corner v2.0 | 2026-03-02*
+*SELf-Corner v2.0 | 2026-03-03*
