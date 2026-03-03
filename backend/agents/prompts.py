@@ -12,7 +12,11 @@ from models import Scenario, StudentPersonality
 def build_student_prompt(scenario: Scenario, personality: StudentPersonality) -> str:
     """
     根據情境與學生個性動態組裝 Realtime API 的 System Prompt。
+    優先使用 scenario.student_prompt（AI 專用情境描述），
+    若不存在則 fallback 到 scenario.description（使用者介面顯示用）。
     """
+    scenario_context = scenario.student_prompt or scenario.description
+
     return f"""# 語言規則（最高優先級，必須嚴格遵守）
 請務必使用繁體中文（台灣慣用語法）進行所有對話，嚴禁使用任何簡體中文詞彙。
 
@@ -26,7 +30,7 @@ def build_student_prompt(scenario: Scenario, personality: StudentPersonality) ->
 
 # 當前情境
 情境主題：{scenario.title}（屬於 {scenario.sel_category} 類型的 SEL 情境）
-情境說明：{scenario.description}
+情境說明：{scenario_context}
 
 你正在經歷以上情境帶來的情緒困擾，老師正嘗試與你溝通。
 請完全代入這個情境和你的個性特質來回應老師。
@@ -73,17 +77,41 @@ TOOLS_SCHEMA = [
 
 
 # =============================================================================
-# 語意分析 Prompt（每輪觸發，使用較小的本地模型）
+# 語意分析 Prompt（每輪觸發，接受上一輪情緒狀態，輸出漸進變化）
 # =============================================================================
 
-SEMANTIC_ANALYSIS_PROMPT = """
-你是一個高度精確的心理學分析模型。你的任務是分析以下這位「老師」說的話，
-並評估這句話在一個典型的國中一年級學生身上引發的 9 種情緒的強度分數。
+def build_semantic_analysis_prompt(
+    teacher_input: str,
+    previous_emotions: dict,
+    scenario_title: str,
+) -> str:
+    """
+    根據老師這輪的話語、學生目前的情緒狀態與情境，
+    產生合理的情緒漸進變化（每輪變化限制在 ±0.20 以內，
+    極端情況最多 ±0.35），避免情緒跳動過大。
+    """
+    prev_lines = "\n".join(
+        f"  {k}: {v:.2f}" for k, v in previous_emotions.items()
+    )
+    return f"""你是一個高度精確的心理學分析模型。
+你的任務是根據老師說的話以及學生目前的情緒狀態，評估學生情緒的**合理漸進變化**。
 
-老師的話: "{teacher_input}"
+情境：{scenario_title}
+老師這輪說的話："{teacher_input}"
+
+學生目前（上一輪結束後）的情緒狀態：
+{prev_lines}
+
+請根據以下規則，判斷這句話對學生情緒的影響，並輸出**更新後**的情緒分數：
+
+規則：
+1. **漸進原則**：情緒不應劇烈跳動。一般情況下，每種情緒每輪的變化幅度不超過 ±0.20。
+   若老師說了特別有力量或傷害性的話，最多允許 ±0.35。
+2. **脈絡原則**：分析這句話在當前情境與學生目前狀態下，最合理的情緒影響方向。
+3. **範圍限制**：所有分數必須保持在 0.0 到 1.0 之間。
 
 你必須嚴格按照以下 JSON 格式輸出，key 是固定的 9 種情緒標籤，
-value 是該情緒的強度分數（0.0 到 1.0 之間，最多兩位小數）。
+value 是**更新後**的情緒強度分數（0.0 到 1.0 之間，最多兩位小數）。
 
 {{
     "HAPPY": 0.0,
@@ -173,8 +201,14 @@ COACH_CHAT_SYSTEM_PROMPT = """
 
 以下是本次練習的完整資訊，請將其作為對話的背景知識：
 
+## 練習情境
+{scenario_info}
+
 ## 師生對話逐字稿
 {transcript}
+
+## 學生情緒變化歷程
+{emotion_summary}
 
 ## 教練回饋報告
 **SEL 評分**

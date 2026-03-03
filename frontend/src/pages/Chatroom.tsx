@@ -1,104 +1,157 @@
-import { useState } from "react";
-import { useNavigate } from "react-router-dom";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
-import { Dices, RefreshCw, HelpCircle } from "lucide-react";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import HamburgerMenu from "@/components/HamburgerMenu";
+import { useState, useEffect } from "react";
+import { useNavigate, useLocation } from "react-router-dom";
+import AppLayout from "@/components/AppLayout";
+import classroomBg from "@/assets/classroom-background.png";
+import {
+  Dices,
+  HelpCircle,
+  AlertCircle,
+  Play,
+  RotateCcw,
+  Mic,
+} from "lucide-react";
+import {
+  Dialog,
+  DialogContent,
+} from "@/components/ui/dialog";
+import { Badge } from "@/components/ui/badge";
 import ScenarioCard from "@/components/chatroom/ScenarioCard";
 import ScenarioDetail from "@/components/chatroom/ScenarioDetail";
 import RandomConfirm from "@/components/chatroom/RandomConfirm";
 import ChatPanel from "@/components/chatroom/ChatPanel";
-import classroomBackground from "@/assets/classroom-background.png";
 import api from "@/lib/api";
 import { useAuthStore } from "@/lib/auth";
-import { toast } from "@/hooks/use-toast";
 
-const allScenarios = [
-  { id: 1, title: "考場失利後的自責", tag: "自我覺察", emoji: "📝", description: "學生在一次重要考試中表現不佳，感到極度自責和沮喪。他開始質疑自己的能力，甚至不想再上學。作為老師，你需要引導他認識情緒、接納失敗，並重建自信。" },
-  { id: 2, title: "分組被落單的窘迫", tag: "社交意識", emoji: "👥", description: "班上分組活動時，有一位學生總是最後一個被選或直接被遺漏。他表面上裝作無所謂，但內心其實很受傷。你需要幫助他理解社交動態，並找到融入團體的方式。" },
-  { id: 3, title: "被當眾誤解的憤怒", tag: "自我管理", emoji: "😤", description: "學生在課堂上被同學誤解並當眾指責，他非常憤怒，差點失控動手。你需要在這個情緒高漲的時刻幫助他冷靜下來，學習如何管理憤怒情緒。" },
-  { id: 4, title: "好朋友吵架的糾結", tag: "人際技巧", emoji: "🤝", description: "兩個好朋友因為一件小事吵架了，其中一位來找你傾訴。他既想和好，又覺得委屈。你需要引導他學習溝通技巧，修復友誼關係。" },
-  { id: 5, title: "面對新環境的焦慮", tag: "適應能力", emoji: "🌱", description: "學生剛轉學到新班級，對陌生的環境和同學感到極度焦慮。他不敢主動交朋友，午餐時間總是一個人。你需要幫助他建立安全感，逐步適應新環境。" },
-  { id: 6, title: "承認作弊後的羞愧", tag: "負責決策", emoji: "💭", description: "學生在考試中作弊被發現，他感到非常羞愧，不知道如何面對老師和同學。你需要引導他理解誠實的重要性，並幫助他做出負責任的決定。" },
-  { id: 7, title: "被老師點名的緊張", tag: "自我管理", emoji: "😰", description: "學生每次被老師點名回答問題時都會極度緊張，甚至說不出話來。這種情況讓他越來越害怕上課。你需要幫助他找到管理緊張情緒的方法。" },
-  { id: 8, title: "同學說謊的兩難", tag: "負責決策", emoji: "🤔", description: "學生發現好朋友對老師撒了謊，他陷入兩難——告訴老師會背叛朋友，不說又覺得不對。你需要引導他思考道德決策的複雜性。" },
-  { id: 9, title: "排擠他人的罪惡感", tag: "社交意識", emoji: "😔", description: "學生參與了排擠班上某位同學的行為，事後感到強烈的罪惡感。他不知道該如何彌補。你需要幫助他理解自己行為對他人的影響，並採取修復行動。" },
-  { id: 10, title: "比賽輸了的不甘心", tag: "自我覺察", emoji: "🏆", description: "學生在校際比賽中惜敗，覺得不公平而非常不甘心，甚至遷怒隊友。你需要幫助他處理失落情緒，並學會從失敗中成長。" },
+interface Scenario {
+  id: number;
+  title: string;
+  tag: string;
+  emoji: string;
+  description: string;
+}
+
+// Fallback scenarios if API is unavailable
+const fallbackScenarios: Scenario[] = [
+  { id: 1, title: "考場失利後的自責", tag: "自我覺察", emoji: "📝", description: "學生在一次重要考試中表現不佳，感到極度自責和沮喪。" },
+  { id: 2, title: "分組被落單的窘迫", tag: "社會覺察", emoji: "👥", description: "班上分組活動時，有一位學生總是最後一個被選或直接被遺漏。" },
+  { id: 3, title: "被當眾誤解的憤怒", tag: "自我管理", emoji: "😤", description: "學生在課堂上被同學誤解並當眾指責，他非常憤怒，差點失控動手。" },
+  { id: 4, title: "好朋友吵架的糾結", tag: "人際技巧", emoji: "🤝", description: "兩個好朋友因為一件小事吵架了，其中一位來找你傾訴。" },
+  { id: 5, title: "面對新環境的焦慮", tag: "自我覺察", emoji: "🌱", description: "學生剛轉學到新班級，對陌生的環境和同學感到極度焦慮。" },
+  { id: 6, title: "承認作弊後的羞愧", tag: "負責決策", emoji: "💭", description: "學生在考試中作弊被發現，他感到非常羞愧，不知道如何面對老師和同學。" },
 ];
 
 const DISPLAY_COUNT = 6;
+const TAGS = ["全部", "自我覺察", "自我管理", "社會覺察", "人際技巧", "負責決策"];
 
-function pickRandomScenarios(pool: typeof allScenarios, count: number) {
+function pickRandom<T>(pool: T[], count: number): T[] {
   const shuffled = [...pool].sort(() => Math.random() - 0.5);
   return shuffled.slice(0, count);
 }
 
 export default function Chatroom() {
   const navigate = useNavigate();
+  const location = useLocation();
   const { setSessionUuid } = useAuthStore();
 
+  const [allScenarios, setAllScenarios] = useState<Scenario[]>(fallbackScenarios);
   const [isStarted, setIsStarted] = useState(false);
   const [isPaused, setIsPaused] = useState(false);
+  const [elapsedSeconds, setElapsedSeconds] = useState(0);
+  const [studentEmotion, setStudentEmotion] = useState<"neutral" | "angry" | "sad" | "thinking">("neutral");
   const [selectedScenarioId, setSelectedScenarioId] = useState<number | null>(null);
+  const [activeScenario, setActiveScenario] = useState<Scenario | null>(null);
+  const [activeTag, setActiveTag] = useState("全部");
   const [showRandomConfirm, setShowRandomConfirm] = useState(false);
   const [helpOpen, setHelpOpen] = useState(false);
-  const [displayedScenarios, setDisplayedScenarios] = useState(() =>
-    pickRandomScenarios(allScenarios, DISPLAY_COUNT)
-  );
-
-  // LiveKit 連線資訊
+  const [voicePromptOpen, setVoicePromptOpen] = useState(false);
   const [livekitToken, setLivekitToken] = useState<string | null>(null);
-  const [livekitUrl, setLivekitUrl] = useState<string | null>(null);
   const [currentSessionUuid, setCurrentSessionUuid] = useState<string | null>(null);
-  const [isEnding, setIsEnding] = useState(false);
+  const [displayedScenarios, setDisplayedScenarios] = useState<Scenario[]>([]);
 
-  const selectedScenario = allScenarios.find((s) => s.id === selectedScenarioId) || null;
+  // Load scenarios from API
+  useEffect(() => {
+    api.get("/scenarios").then((res) => {
+      const data: Scenario[] = res.data.map((s: any) => ({
+        id: s.id,
+        title: s.title,
+        tag: s.sel_category ?? "自我覺察",
+        emoji: s.emoji ?? "📝",
+        description: s.description ?? "",
+      }));
+      if (data.length > 0) {
+        setAllScenarios(data);
+        setDisplayedScenarios(pickRandom(data, Math.min(DISPLAY_COUNT, data.length)));
+      }
+    }).catch(() => {
+      setDisplayedScenarios(pickRandom(fallbackScenarios, DISPLAY_COUNT));
+    });
+  }, []);
 
-  const handleCardClick = (id: number) => {
-    setSelectedScenarioId(id);
+  // Timer Effect
+  useEffect(() => {
+    let interval: any;
+    if (isStarted && !isPaused) {
+      interval = setInterval(() => {
+        setElapsedSeconds((prev) => prev + 1);
+      }, 1000);
+    }
+    return () => clearInterval(interval);
+  }, [isStarted, isPaused]);
+
+  // Handle Retry logic
+  useEffect(() => {
+    const retryId = location.state?.retryScenarioId;
+    if (retryId) {
+      const scenario = allScenarios.find(s => s.id === retryId);
+      if (scenario) {
+        setActiveScenario(scenario);
+        setIsStarted(true);
+        setElapsedSeconds(0);
+        window.history.replaceState({}, document.title);
+      }
+    }
+  }, [location.state, allScenarios]);
+
+  const formatTime = (totalSeconds: number) => {
+    const mins = Math.floor(totalSeconds / 60);
+    const secs = totalSeconds % 60;
+    return `${mins.toString().padStart(2, "0")}:${secs.toString().padStart(2, "0")}`;
   };
 
-  const handleRandomClick = () => {
-    setShowRandomConfirm(true);
+  const handleCardClick = (id: number) => setSelectedScenarioId(id);
+  const handleRandomClick = () => setShowRandomConfirm(true);
+  const handleRefresh = () => setDisplayedScenarios(pickRandom(allScenarios, Math.min(DISPLAY_COUNT, allScenarios.length)));
+
+  const handleStart = (scenario?: Scenario) => {
+    const chosen = scenario || allScenarios.find(s => s.id === selectedScenarioId) || pickRandom(allScenarios, 1)[0];
+    setActiveScenario(chosen);
+    setSelectedScenarioId(null);
+    setShowRandomConfirm(false);
+    setVoicePromptOpen(true);
   };
 
-  const handleRefresh = () => {
-    setDisplayedScenarios(pickRandomScenarios(allScenarios, DISPLAY_COUNT));
-  };
-
-  const handleStart = async () => {
-    const scenarioId = showRandomConfirm
-      ? allScenarios[Math.floor(Math.random() * allScenarios.length)].id
-      : selectedScenarioId;
-
-    if (!scenarioId) return;
+  const handleVoiceConfirm = async (_enableVoice: boolean) => {
+    setVoicePromptOpen(false);
+    if (!activeScenario) return;
 
     try {
-      // 1. 建立 Session
-      const sessionRes = await api.post("/session/create", { scenario_id: scenarioId });
-      const { session_uuid, livekit_room_name } = sessionRes.data;
+      // Create session
+      const sessionRes = await api.post("/session/create", { scenario_id: activeScenario.id });
+      const uuid: string = sessionRes.data.session_uuid;
+      setCurrentSessionUuid(uuid);
+      setSessionUuid(uuid);
 
-      // 2. 取得 LiveKit Token
-      const tokenRes = await api.post("/livekit/token", { session_uuid });
-      const { token, url } = tokenRes.data;
-
-      // 3. 儲存到 store 供 Feedback 頁面使用
-      setSessionUuid(session_uuid);
-      setCurrentSessionUuid(session_uuid);
-      setLivekitToken(token);
-      setLivekitUrl(url);
-
-      console.log(`[Chatroom] Session: ${session_uuid}, Room: ${livekit_room_name}`);
-
-      setIsStarted(true);
-      setIsPaused(false);
-      setSelectedScenarioId(null);
-      setShowRandomConfirm(false);
+      // Get LiveKit token
+      const tokenRes = await api.post("/livekit/token", { session_uuid: uuid });
+      setLivekitToken(tokenRes.data.token);
     } catch (err) {
-      console.error(err);
-      toast({ title: "無法開始對話", description: "請稍後再試", variant: "destructive" });
+      console.error("[Chatroom] Failed to create session or get token:", err);
+      // Still start the session locally so user can see the UI
     }
+
+    setIsStarted(true);
+    setIsPaused(false);
+    setElapsedSeconds(0);
   };
 
   const handleCloseDetail = () => {
@@ -106,142 +159,299 @@ export default function Chatroom() {
     setShowRandomConfirm(false);
   };
 
-  const handleTogglePause = () => {
-    setIsPaused(!isPaused);
-  };
+  const handleTogglePause = () => setIsPaused(!isPaused);
 
   const handleEnd = async () => {
-    setIsEnding(true);
     if (currentSessionUuid) {
       try {
         await api.post(`/session/${currentSessionUuid}/end`);
       } catch (err) {
-        console.error("[Chatroom] End session error:", err);
+        console.error("[Chatroom] Failed to end session:", err);
       }
     }
-    setIsEnding(false);
-    navigate("/feedback");
+    navigate("/feedback", { state: { currentScenarioId: activeScenario?.id } });
   };
 
+  const renderStudentAvatar = () => {
+    if (isPaused) return "⏸️";
+    switch (studentEmotion) {
+      case "angry": return "😤";
+      case "sad": return "🥺";
+      case "thinking": return "🤔";
+      default: return "🧑‍🎓";
+    }
+  };
+
+  const emotionLabel = () => {
+    switch (studentEmotion) {
+      case "angry": return "抗拒 · 防衛";
+      case "sad": return "難過 · 退縮";
+      case "thinking": return "學生思考中...";
+      default: return "聆聽中";
+    }
+  };
+
+  // Pass session info to sidebar via AppLayout
+  const sessionInfo = isStarted && activeScenario ? {
+    scenarioTitle: activeScenario.title,
+    formattedTime: formatTime(elapsedSeconds),
+    isPaused,
+    onTogglePause: handleTogglePause,
+    onEnd: handleEnd,
+  } : undefined;
+
   return (
-    <div className="min-h-screen bg-background p-6">
-      {/* Header */}
-      <div className="flex items-center justify-between mb-4">
-        <div className="flex items-center gap-4">
-          <HamburgerMenu />
-          <h1 className="text-xl font-semibold">對話空間</h1>
-        </div>
-        <Button variant="outline" size="sm" onClick={() => setHelpOpen(true)}>
-          <HelpCircle className="h-4 w-4 mr-1" />
-          使用說明
-        </Button>
-      </div>
-
-      {/* Main Area */}
-      <div className="h-[calc(100vh-7rem)] rounded-lg overflow-hidden relative">
-        <img
-          src={classroomBackground}
-          alt="教室背景"
-          className={`w-full h-full object-cover transition-all duration-500 ${
-            isPaused ? "opacity-40" : "opacity-100"
-          }`}
-        />
-
-        {/* Paused overlay */}
-        {isStarted && isPaused && (
-          <div className="absolute inset-0 flex items-center justify-center z-10 pointer-events-none">
-            <span className="text-foreground font-bold text-2xl bg-background/60 px-6 py-3 rounded-lg">
-              ⏸ 對話暫停
-            </span>
+    <AppLayout sessionInfo={sessionInfo}>
+      <div className="flex flex-col h-full overflow-hidden relative">
+        {/* Top Header Toolbar */}
+        <header className="h-14 bg-white/95 backdrop-blur-sm border-b border-[#E5E2D9] flex items-center justify-between px-6 shrink-0 z-20">
+          <div className="flex items-center gap-4 pl-12 lg:pl-0">
+             {isStarted ? (
+               <h2 className="text-sm font-bold text-[#3D3831]">
+                 情境：{activeScenario?.title}
+               </h2>
+             ) : (
+               <>
+                 <Badge variant="outline" className="font-heading text-[10px] font-bold tracking-widest uppercase border-primary/30 text-primary">
+                   Scenario Selection
+                 </Badge>
+                 <h2 className="text-sm font-bold text-[#3D3831] truncate max-w-[200px] md:max-w-none">
+                   探索練習情境
+                 </h2>
+               </>
+             )}
           </div>
-        )}
 
-        {/* Scenario Selection (before start) */}
-        {!isStarted && !selectedScenario && !showRandomConfirm && (
-          <div className="absolute inset-0 flex flex-col items-center justify-center bg-background/40 backdrop-blur-sm p-8">
-            <div className="flex items-center gap-3 mb-2">
-              <h2 className="text-2xl font-bold text-background drop-shadow-md">選擇練習情境</h2>
-              <Button variant="ghost" size="icon" onClick={handleRefresh} className="rounded-full" title="換一批情境">
-                <RefreshCw className="h-5 w-5" />
-              </Button>
-            </div>
-            <p className="text-muted-foreground mb-6">請選擇一個你想練習的對話情境</p>
+          <div className="flex items-center gap-4">
+             {/* Emotion status indicator */}
+             {isStarted && (
+               <div className="flex items-center gap-2">
+                 <div className={`w-2 h-2 rounded-full ${isPaused ? "bg-[#A09C94]" : "bg-green-500 animate-pulse"}`} />
+                 <span className="text-sm font-medium text-[#706C61]">
+                   {emotionLabel()}
+                 </span>
+               </div>
+             )}
 
-            <div className="grid grid-cols-2 lg:grid-cols-3 gap-4 max-w-2xl w-full mb-4">
-              {displayedScenarios.map((scenario) => (
-                <ScenarioCard key={scenario.id} scenario={scenario} onClick={handleCardClick} />
-              ))}
-            </div>
+             <button
+               onClick={() => setHelpOpen(true)}
+               className="w-9 h-9 border border-[#E5E2D9] flex items-center justify-center rounded-lg hover:bg-[#FAF9F6] transition-all group"
+             >
+               <HelpCircle className="w-4.5 h-4.5 text-[#A09C94] group-hover:text-primary transition-colors" />
+             </button>
+          </div>
+        </header>
 
-            {/* Random card */}
-            <Card
-              onClick={handleRandomClick}
-              className="cursor-pointer transition-all duration-200 hover:scale-[1.03] hover:shadow-lg border-2 border-dashed border-border/60 bg-card/80 backdrop-blur-md hover:border-primary/40 max-w-2xl w-full"
+        {/* Content View Area */}
+        <div className="flex-1 relative overflow-hidden">
+          {/* BACKGROUND IMAGE */}
+          {isStarted && (
+            <div
+              className="absolute inset-0 bg-cover bg-center transition-opacity duration-1000"
+              style={{ backgroundImage: `url(${classroomBg})` }}
             >
-              <CardContent className="p-4 text-center space-y-2 flex flex-col items-center justify-center">
-                <Dices className="h-7 w-7 text-muted-foreground" />
-                <p className="font-medium text-sm leading-tight text-foreground">隨機情境</p>
-                <span className="inline-block text-xs px-2 py-0.5 rounded-full border border-border bg-muted text-muted-foreground">
-                  驚喜挑戰
-                </span>
-              </CardContent>
-            </Card>
-          </div>
-        )}
-
-        {/* Flipped scenario detail */}
-        {!isStarted && selectedScenario && (
-          <ScenarioDetail scenario={selectedScenario} onClose={handleCloseDetail} onStart={handleStart} />
-        )}
-
-        {/* Random confirm */}
-        {!isStarted && showRandomConfirm && (
-          <RandomConfirm onClose={handleCloseDetail} onStart={handleStart} />
-        )}
-
-        {/* Virtual student during session */}
-        {isStarted && (
-          <>
-            <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-[60%] flex flex-col items-center">
-              <div className="w-32 h-32 rounded-full bg-muted border-2 border-border flex items-center justify-center text-5xl">
-                {isPaused ? "😶" : "🧑‍🎓"}
-              </div>
-              <span className="mt-2 text-sm text-foreground font-medium bg-background/60 px-3 py-1 rounded-full">
-                虛擬學生
-              </span>
+              <div className="absolute inset-0 bg-[#FAF9F6]/10" />
             </div>
+          )}
 
-            {/* Chat Panel with LiveKit integration */}
+          {/* Student avatar overlay - top left area */}
+          {isStarted && (
+            <div className="absolute top-6 left-8 z-20 flex items-center gap-4 animate-in fade-in duration-500">
+              <div className="w-14 h-14 rounded-full bg-white/90 backdrop-blur-sm border-2 border-white shadow-xl flex items-center justify-center text-3xl">
+                {renderStudentAvatar()}
+              </div>
+              <div className="flex flex-col">
+                <span className="font-heading text-base font-bold text-white drop-shadow-md">
+                  小明（國二）
+                </span>
+                <div className="flex items-center gap-1.5">
+                  <div className={`w-1.5 h-1.5 rounded-full ${isPaused ? "bg-[#A09C94]" : "bg-primary animate-pulse"}`} />
+                  <span className="text-xs font-medium text-white/80 drop-shadow-sm">
+                    {emotionLabel()}
+                  </span>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* PAUSE OVERLAY */}
+          {isStarted && isPaused && (
+            <div className="absolute inset-0 z-40 bg-black/40 backdrop-blur-sm flex items-center justify-center animate-in fade-in duration-300">
+              <div className="bg-white/95 backdrop-blur-md border border-[#E5E2D9] p-10 rounded-2xl shadow-2xl flex flex-col items-center gap-6 max-w-sm text-center">
+                <div className="w-16 h-16 bg-[#FAF9F6] rounded-full flex items-center justify-center">
+                   <AlertCircle className="w-8 h-8 text-[#A09C94]" />
+                </div>
+                <div className="flex flex-col gap-2">
+                  <h3 className="font-heading text-2xl font-bold text-[#3D3831]">對話已暫停</h3>
+                  <p className="text-sm text-[#706C61] font-medium leading-relaxed">
+                    深呼吸，整理一下思緒吧！準備好後點擊下方按鈕繼續練習。
+                  </p>
+                </div>
+                <button
+                  onClick={handleTogglePause}
+                  className="w-full h-12 bg-primary text-white font-heading font-bold rounded-lg shadow-lg hover:bg-[#C8694F] transition-all flex items-center justify-center gap-2"
+                >
+                  <Play className="w-4 h-4 fill-current" />
+                  繼續練習
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* 1. SCENARIO SELECTION VIEW */}
+          {!isStarted && !selectedScenarioId && !showRandomConfirm && (
+            <div className="h-full overflow-y-auto px-6 py-10 md:px-12 animate-in fade-in duration-500 bg-[#FAF9F6]">
+               <div className="max-w-5xl mx-auto flex flex-col gap-10">
+                 <div className="flex flex-col gap-6">
+                    <div className="flex items-center justify-between">
+                      <div className="flex flex-col gap-1">
+                        <span className="font-heading text-[10px] font-bold tracking-[0.2em] text-primary uppercase">Scenario Pool</span>
+                        <h3 className="font-heading text-2xl font-bold text-[#3D3831]">選擇一個練習情境</h3>
+                      </div>
+                      <button
+                        onClick={handleRefresh}
+                        className="flex items-center gap-2 px-4 py-2 border border-[#E5E2D9] rounded-lg text-sm font-bold text-[#706C61] hover:bg-white hover:text-primary transition-all group shadow-sm"
+                      >
+                        <RotateCcw className="w-4 h-4 group-hover:rotate-180 transition-transform duration-500" />
+                        換一批
+                      </button>
+                    </div>
+
+                    <div className="flex flex-wrap gap-2">
+                      {TAGS.map(tag => (
+                        <button
+                          key={tag}
+                          onClick={() => setActiveTag(tag)}
+                          className={`px-4 py-1.5 rounded-full text-[12px] font-bold tracking-wide transition-all ${
+                            activeTag === tag
+                            ? "bg-[#3D3831] text-white shadow-md"
+                            : "bg-white border border-[#E5E2D9] text-[#706C61] hover:border-[#3D3831]"
+                          }`}
+                        >
+                          {tag}
+                        </button>
+                      ))}
+                    </div>
+                 </div>
+
+                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                    {displayedScenarios.map((scenario) => (
+                      <ScenarioCard key={scenario.id} scenario={scenario} onClick={handleCardClick} />
+                    ))}
+                    <button
+                      onClick={handleRandomClick}
+                      className="group flex flex-col items-center justify-center gap-4 p-8 border-2 border-dashed border-primary/30 rounded-2xl bg-white hover:border-primary hover:bg-primary/5 hover:shadow-xl transition-all duration-300"
+                    >
+                      <div className="w-16 h-16 bg-primary/10 rounded-full flex items-center justify-center group-hover:scale-110 transition-transform">
+                        <Dices className="w-8 h-8 text-primary" />
+                      </div>
+                      <div className="flex flex-col gap-1">
+                        <span className="font-heading text-lg font-bold text-[#3D3831]">隨機挑戰</span>
+                        <p className="text-xs text-[#706C61] font-medium leading-relaxed">
+                          由系統隨機挑選一個<br/>未知情境進行練習
+                        </p>
+                      </div>
+                    </button>
+                 </div>
+               </div>
+            </div>
+          )}
+
+          {/* 2. DETAIL / CONFIRM VIEWS */}
+          {!isStarted && selectedScenarioId && (
+            <ScenarioDetail
+              scenario={allScenarios.find(s => s.id === selectedScenarioId)!}
+              onClose={handleCloseDetail}
+              onStart={handleStart}
+            />
+          )}
+          {!isStarted && showRandomConfirm && (
+            <RandomConfirm onClose={handleCloseDetail} onStart={() => handleStart()} />
+          )}
+
+          {/* 3. ACTIVE SESSION VIEW - just ChatPanel over background */}
+          {isStarted && (
             <ChatPanel
               isPaused={isPaused}
               onTogglePause={handleTogglePause}
               onEnd={handleEnd}
+              onEmotionChange={(emo) => setStudentEmotion(emo as any)}
               livekitToken={livekitToken}
-              livekitUrl={livekitUrl}
-              isEnding={isEnding}
             />
-          </>
-        )}
+          )}
+        </div>
       </div>
 
-      {/* Help Dialog */}
-      <Dialog open={helpOpen} onOpenChange={setHelpOpen}>
-        <DialogContent className="max-w-md">
-          <DialogHeader>
-            <DialogTitle>使用說明</DialogTitle>
-          </DialogHeader>
-          <div className="space-y-4 text-sm text-muted-foreground">
-            <p>歡迎來到對話空間！以下是操作說明：</p>
-            <ul className="list-disc list-inside space-y-2">
-              <li>選擇一個情境卡片，查看詳細說明後開始對話</li>
-              <li>也可以選擇「隨機情境」讓系統為您挑選</li>
-              <li>對話中可以透過文字或語音與虛擬學生互動</li>
-              <li>按暫停鍵可凍結對話，按繼續鍵恢復</li>
-              <li>按結束按鈕可結束對話並查看回饋</li>
-            </ul>
+      {/* Voice Prompt Dialog */}
+      <Dialog open={voicePromptOpen} onOpenChange={setVoicePromptOpen}>
+        <DialogContent className="sm:max-w-sm border-none p-0 overflow-hidden rounded-2xl shadow-2xl">
+          <div className="p-8 flex flex-col items-center gap-6 text-center">
+            <div className="w-16 h-16 bg-primary/10 rounded-full flex items-center justify-center">
+              <Mic className="w-8 h-8 text-primary" />
+            </div>
+            <div className="flex flex-col gap-2">
+              <h3 className="font-heading text-xl font-bold text-[#3D3831]">開啟語音功能？</h3>
+              <p className="text-sm text-[#706C61] font-medium leading-relaxed">
+                語音模式可讓您用口說方式與 AI 學生互動，體驗更真實的對話練習。
+              </p>
+            </div>
+            <div className="flex gap-3 w-full">
+              <button
+                onClick={() => handleVoiceConfirm(false)}
+                className="flex-1 h-11 border-2 border-[#E5E2D9] rounded-xl font-heading text-sm font-bold text-[#706C61] hover:bg-[#FAF9F6] transition-all"
+              >
+                僅用文字
+              </button>
+              <button
+                onClick={() => handleVoiceConfirm(true)}
+                className="flex-1 h-11 bg-primary text-white rounded-xl font-heading text-sm font-bold shadow-lg hover:bg-[#C8694F] transition-all flex items-center justify-center gap-2"
+              >
+                <Mic className="w-4 h-4" />
+                開啟語音
+              </button>
+            </div>
           </div>
         </DialogContent>
       </Dialog>
-    </div>
+
+      {/* Help Dialog */}
+      <Dialog open={helpOpen} onOpenChange={setHelpOpen}>
+        <DialogContent className="sm:max-w-md border-none p-0 overflow-hidden rounded-2xl shadow-2xl">
+          <div className="bg-[#3D3831] p-6 text-white flex items-center gap-3">
+             <div className="w-10 h-10 bg-primary rounded-xl flex items-center justify-center shadow-lg">
+                <HelpCircle className="w-6 h-6 text-white" />
+             </div>
+             <div>
+                <h2 className="font-heading text-xl font-bold">對話練習指南</h2>
+                <p className="text-xs text-white/60 font-medium">Safe Harbor & Consistent Communication</p>
+             </div>
+          </div>
+          <div className="p-8 space-y-6">
+            <div className="space-y-4">
+               {[
+                 { id: 1, text: "選擇情境：從情境池中挑選一個感興趣或想精進的對話挑戰。" },
+                 { id: 2, text: "模擬互動：使用語音或文字，像平常對話一樣與 AI 學生互動。" },
+                 { id: 3, text: "覺察情緒：觀察學生的表情與情緒標籤，調整您的溝通姿態。" },
+                 { id: 4, text: "暫停反思：若感到壓力或不知如何回應，隨時按暫停深呼吸。" },
+                 { id: 5, text: "專家回饋：結束後查看雷達圖指標，學習「一致性」的表達方式。" }
+               ].map(item => (
+                 <div key={item.id} className="flex gap-4 group">
+                    <span className="w-6 h-6 shrink-0 bg-[#FAF9F6] border border-[#E5E2D9] rounded-full flex items-center justify-center text-[10px] font-bold text-[#706C61] group-hover:bg-primary group-hover:text-white group-hover:border-primary transition-all">
+                      {item.id}
+                    </span>
+                    <p className="text-sm text-[#706C61] font-medium leading-relaxed">{item.text}</p>
+                 </div>
+               ))}
+            </div>
+            <button
+              onClick={() => setHelpOpen(false)}
+              className="w-full h-12 border-2 border-[#3D3831] text-[#3D3831] font-heading font-bold rounded-lg hover:bg-[#3D3831] hover:text-white transition-all uppercase tracking-widest text-xs"
+            >
+              我知道了
+            </button>
+          </div>
+        </DialogContent>
+      </Dialog>
+    </AppLayout>
   );
 }

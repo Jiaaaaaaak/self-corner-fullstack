@@ -213,6 +213,14 @@ class DBManager:
     # EmotionLog CRUD
     # =========================================================================
 
+    async def get_emotion_logs_by_session(self, session_id: int) -> List[EmotionLog]:
+        result = await self.db.execute(
+            select(EmotionLog)
+            .where(EmotionLog.session_id == session_id)
+            .order_by(EmotionLog.turn_number.asc())
+        )
+        return list(result.scalars().all())
+
     async def create_emotion_log(
         self, session_id: int, turn_number: int, teacher_input: str, scores: dict
     ) -> EmotionLog:

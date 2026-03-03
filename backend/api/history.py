@@ -31,8 +31,15 @@ class HistoryItem(BaseModel):
     started_at: str
     ended_at: Optional[str]
     scenario_title: Optional[str]
-    sel_scores: Optional[dict]
-    has_report: bool
+    rounds: int
+    duration: Optional[int]  # seconds
+
+
+def _calc_duration(started_at, ended_at) -> Optional[int]:
+    if started_at and ended_at:
+        delta = ended_at - started_at
+        return int(delta.total_seconds())
+    return None
 
 
 @router.get("", response_model=List[HistoryItem])
@@ -54,8 +61,9 @@ async def get_history(
             scenario = await db_manager.get_scenario_by_id(s.scenario_id)
             scenario_title = scenario.title if scenario else None
 
-        report = await db_manager.get_feedback_report_by_session(s.id)
-        sel_scores = report.sel_scores if report else None
+        transcripts = await db_manager.get_session_transcripts(s.id)
+        rounds = len(transcripts)
+        duration = _calc_duration(s.started_at, s.ended_at)
 
         result.append(HistoryItem(
             session_uuid=s.session_uuid,
@@ -63,8 +71,8 @@ async def get_history(
             started_at=s.started_at.isoformat() if s.started_at else "",
             ended_at=s.ended_at.isoformat() if s.ended_at else None,
             scenario_title=scenario_title,
-            sel_scores=sel_scores,
-            has_report=report is not None,
+            rounds=rounds,
+            duration=duration,
         ))
 
     return result
@@ -89,7 +97,9 @@ async def get_history_item(
         scenario = await db_manager.get_scenario_by_id(session.scenario_id)
         scenario_title = scenario.title if scenario else None
 
-    report = await db_manager.get_feedback_report_by_session(session.id)
+    transcripts = await db_manager.get_session_transcripts(session.id)
+    rounds = len(transcripts)
+    duration = _calc_duration(session.started_at, session.ended_at)
 
     return HistoryItem(
         session_uuid=session.session_uuid,
@@ -97,6 +107,6 @@ async def get_history_item(
         started_at=session.started_at.isoformat() if session.started_at else "",
         ended_at=session.ended_at.isoformat() if session.ended_at else None,
         scenario_title=scenario_title,
-        sel_scores=report.sel_scores if report else None,
-        has_report=report is not None,
+        rounds=rounds,
+        duration=duration,
     )

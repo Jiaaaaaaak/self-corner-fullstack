@@ -12,7 +12,7 @@ interface Scenario {
 interface ScenarioDetailProps {
   scenario: Scenario;
   onClose: () => void;
-  onStart: () => void;
+  onStart: (scenario: Scenario) => void;
 }
 
 export default function ScenarioDetail({ scenario, onClose, onStart }: ScenarioDetailProps) {
@@ -44,7 +44,7 @@ export default function ScenarioDetail({ scenario, onClose, onStart }: ScenarioD
         </div>
 
         <div className="flex justify-center mt-8">
-          <Button size="lg" onClick={onStart}>
+          <Button size="lg" onClick={() => onStart(scenario)}>
             開始對話
           </Button>
         </div>

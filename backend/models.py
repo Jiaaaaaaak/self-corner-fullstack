@@ -43,6 +43,10 @@ class Scenario(Base):
     sel_category: Mapped[str] = mapped_column(String(50), nullable=False)
     emoji: Mapped[str] = mapped_column(String(10), nullable=False)
     description: Mapped[str] = mapped_column(Text, nullable=False)
+    # 專供 AI 學生使用的情境 Prompt（第一人稱，不對外顯示）
+    student_prompt: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    # 情境開始時的基準情緒（9 種，0.0–1.0）
+    initial_emotions: Mapped[Optional[dict]] = mapped_column(JSON, nullable=True)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
 
     sessions: Mapped[list["Session"]] = relationship("Session", back_populates="scenario")

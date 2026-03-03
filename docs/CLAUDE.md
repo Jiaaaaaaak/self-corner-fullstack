@@ -6,9 +6,11 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Commands
 
-### Backend
+### Backend（`backend/`）
 
 ```bash
+cd backend
+
 # 安裝依賴
 pip install -r requirements.txt
 
@@ -22,9 +24,12 @@ python main.py
 python -m agents.voice_pipeline dev
 ```
 
-### Frontend（`web_client/`）
+### Frontend（`frontend/`）
 
 ```bash
+cd frontend
+npm install       # 首次安裝依賴
+
 npm run dev        # 開發伺服器 (port 8080)
 npm run build      # 生產建置
 npm run lint       # ESLint 檢查
@@ -38,9 +43,9 @@ npm run test:watch # Vitest 監聽模式
 
 ### 需同時執行的三個 Process
 
-1. **FastAPI Server** (`main.py`) — REST API，處理認證、Session、報告
-2. **LiveKit Agent Worker** (`agents/voice_pipeline.py`) — 獨立 Python process，由 LiveKit 在有人加入房間時自動 dispatch job；負責 OpenAI Realtime API 連線與逐字稿寫入
-3. **React Dev Server** (`web_client/`) — 前端
+1. **FastAPI Server** (`backend/main.py`) — REST API，處理認證、Session、報告
+2. **LiveKit Agent Worker** (`backend/agents/voice_pipeline.py`) — 獨立 Python process，由 LiveKit 在有人加入房間時自動 dispatch job；負責 OpenAI Realtime API 連線與逐字稿寫入
+3. **React Dev Server** (`frontend/`) — 前端
 
 ### 關鍵資料流：一次完整練習
 
@@ -51,22 +56,25 @@ npm run test:watch # Vitest 監聽模式
     → 後端生成 LiveKit Token，前端連入房間
 [LiveKit] 觸發 Agent Worker job
     → voice_pipeline.py 透過 room_name 查 DB，取得 scenario + personality
-    → 動態組裝 student prompt，連線 OpenAI Realtime API
-    → 每輪老師說話：Realtime API 觸發 semantic_analysis tool → 存 EmotionLog
+    → 動態組裝 student prompt（使用 scenario.student_prompt），連線 OpenAI Realtime API
+    → 初始情緒從 scenario.initial_emotions 載入，存入 self.last_emotion_scores
+    → 每輪老師說話：Realtime API 觸發 semantic_analysis tool
+        → build_semantic_analysis_prompt(teacher_input, last_emotion_scores, scenario_title)
+        → gpt-3.5-turbo 分析 → 漸進更新情緒（±0.20/輪）→ 存 EmotionLog → 更新 last_emotion_scores
     → 逐字稿（teacher/student）即時寫入 transcripts 表
     → 回應音訊透過 LiveKit 播放給老師
 [前端] POST /session/{uuid}/end
     → 後端取全部逐字稿 → 呼叫 gpt-4o coach LLM → 儲存 FeedbackReport
 [前端] GET /report/{uuid}/feedback → 顯示 SEL 雷達圖、回饋、逐字稿
 [前端] POST /report/{uuid}/chat (message + history)
-    → 後端帶入完整逐字稿 + FeedbackReport 作為 system context → 呼叫 gpt-4o
+    → 後端帶入情境資訊 + 完整逐字稿 + 逐輪情緒摘要 + FeedbackReport 作為 system context → 呼叫 gpt-4o
 ```
 
 ### 認證機制
 
 - **HttpOnly Cookie**：`access_token`（15 分鐘）+ `refresh_token`（7 天）
 - **Token Rotation**：每次刷新撤銷舊 refresh_token，發行新的，記錄在 `refresh_tokens` 表
-- **前端攔截器**：`web_client/src/lib/api.ts` 攔截 401，自動呼叫 `/auth/refresh` 後重試原請求
+- **前端攔截器**：`frontend/src/lib/api.ts` 攔截 401，自動呼叫 `/auth/refresh` 後重試原請求
 - **後端保護**：各 API 路由透過 `get_current_user_id` dependency 從 Cookie 解析 JWT
 
 ### 文字輸入模式的資料流
@@ -88,11 +96,29 @@ npm run test:watch # Vitest 監聽模式
 
 `agents/prompts.py` 的 `build_student_prompt(scenario, personality)` 在每次 Session 啟動時被 `voice_pipeline.py` 呼叫，將情境描述與學生個性合併成 Realtime API 的 system instructions。Agent Worker 透過 `room_name` 查 DB（`Session` → `scenario_id` / `personality_id`）取得這兩份資料。
 
+情境描述有兩欄：
+- `scenario.description`：給使用者介面顯示的說明（第三人稱，教師視角）
+- `scenario.student_prompt`：專供 AI 學生使用的第一人稱情境描述（不對外顯示）
+
+`build_student_prompt()` 優先使用 `student_prompt`，若為 null 則 fallback 到 `description`。
+
+### 情緒連續性設計
+
+情緒分析採漸進模式，避免每輪情緒跳動過大：
+
+- `voice_pipeline.py` 啟動時從 `scenario.initial_emotions`（JSONB）讀取各情境的情緒基準值，存入 `self.last_emotion_scores`
+- 每輪 `exec_semantic_analysis()` 呼叫 `build_semantic_analysis_prompt(teacher_input, previous_emotions, scenario_title)`，LLM 在上一輪基礎上做漸進調整（一般 ±0.20，極端情況 ±0.35）
+- 分析完成後更新 `self.last_emotion_scores` 供下輪使用
+
 ### 前端狀態管理
 
-- **`useAuthStore`**（`src/lib/auth.ts`，Zustand + persist）：跨頁面共享 `user`、`isLoggedIn`、`sessionUuid`
+- **`useAuthStore`**（`frontend/src/lib/auth.ts`，Zustand + persist）：跨頁面共享 `user`、`isLoggedIn`、`sessionUuid`
 - `sessionUuid` 在 Chatroom 建立 Session 時寫入，Feedback 頁面讀取用來呼叫 `/report/{uuid}/feedback`
 - History 頁面點擊紀錄時會覆寫 `sessionUuid`，再導向 Feedback 頁
+
+### 前端路由保護
+
+`frontend/src/App.tsx` 中的 `ProtectedRoute` 元件：`useAuthStore.isLoggedIn` 為 false 時會導向 `/login`。
 
 ---
 
@@ -103,7 +129,16 @@ npm run test:watch # Vitest 監聽模式
 - `FeedbackReport` 與 `Session` 是 1:1 關係（`uselist=False`），在 `POST /session/{uuid}/end` 同步生成
 - `EmotionLog` 每輪逐字稿一筆，記錄 9 種情緒分數（0.0–1.0）
 
-初始資料（情境 × 學生個性）透過 `seed_data.py` 匯入，有防重複保護（先 `SELECT` 確認無資料才 INSERT）。
+`Scenario` 表的重要欄位：
+- `description`：給使用者看的情境說明（UI 顯示）
+- `student_prompt`（nullable）：AI 學生專用的第一人稱情境描述
+- `initial_emotions`（nullable, JSONB）：情境開始時的基準情緒（9 種，0.0–1.0）
+
+初始資料透過 `seed_data.py` 匯入。`seed_data.py` 會先呼叫 `migrate_db()` 確保新欄位存在，再以 UPSERT 策略更新情境資料（既有情境只更新 `student_prompt` / `initial_emotions`，不覆蓋其他欄位）。對既有資料庫只需重新執行一次：
+
+```bash
+python seed_data.py
+```
 
 ---
 
@@ -174,6 +209,46 @@ Vite 開發伺服器設定在 port **8080**（非預設 5173），`main.py` 的 
 
 ---
 
+### History API 變更（v1.1.0）
+
+`GET /history` 回傳的 `HistoryItem` 已移除 `sel_scores` 和 `has_report`，改為：
+- `rounds: int` — 本次 Session 的逐字稿總筆數（代表對話回合數）
+- `duration: int | null` — 秒數（由 `ended_at - started_at` 計算），`null` 表示尚未結束
+
+### Report API 變更（v1.1.0）
+
+`GET /report/{uuid}/feedback` 回傳新增：
+- `emotion_logs: EmotionLogEntry[]` — 每輪（turn_number 排序）的 9 種情緒分數（0.0–1.0）
+
+前端 Feedback 頁的情緒流動圖使用 `recharts LineChart`，9 種情緒各一條折線，Y 軸為百分比（0–100%）。
+
+### 前端環境變數（`frontend/.env`）
+
+```
+VITE_API_URL=http://localhost:8000
+VITE_LIVEKIT_URL=wss://your-project.livekit.cloud
+```
+
+範本見 `frontend/.env.example`。
+
+### Scenario 雙欄位設計（v1.2.0）
+
+`scenarios` 表新增兩欄位，需對既有資料庫在 `backend/` 下執行 `python seed_data.py` 補齊：
+- `student_prompt`（TEXT）：AI 學生第一人稱情境描述，比 `description` 更精確；`build_student_prompt()` 優先使用此欄
+- `initial_emotions`（JSONB）：各情境的情緒初始值，鍵為大寫情緒名（`HAPPY`、`SAD`...），值為 0.0–1.0
+
+### 情緒連續性設計（v1.2.0）
+
+舊版 `SEMANTIC_ANALYSIS_PROMPT`（靜態常數）已替換為 `build_semantic_analysis_prompt(teacher_input, previous_emotions, scenario_title)`。新版 prompt 要求 LLM 在上一輪基礎上做漸進更新（一般 ±0.20，極端 ±0.35），`voice_pipeline.py` 以 `self.last_emotion_scores` 跨輪維護狀態。
+
+### Coach Chat 增強（v1.2.0）
+
+`POST /report/{uuid}/chat` 的 system prompt（`COACH_CHAT_SYSTEM_PROMPT`）新增兩個佔位符：
+- `{scenario_info}`：情境名稱、類別、描述
+- `{emotion_summary}`：每輪前三名情緒（格式：`第 N 輪：悲傷(70%)、焦慮(50%)、挫折(45%)`）
+
+---
+
 ## 範疇限制
 
-此專案的所有後端與前端程式碼均嚴格限定在 `SELf-Corner/` 資料夾內。`virtual_classroom_livekit/` 是架構參考來源，不應修改。
+此專案的後端程式碼位於 `backend/`，前端程式碼位於 `frontend/`，文件位於 `docs/`。團隊規則與 Git 指南詳見 `docs/1_TEAM_RULES.md` 與 `docs/0_GIT_GUIDE.md`，不應修改。

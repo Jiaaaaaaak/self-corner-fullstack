@@ -1,157 +1,214 @@
- import { useState, useEffect } from "react";
+import { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { Separator } from "@/components/ui/separator";
 import { toast } from "@/hooks/use-toast";
-import HamburgerMenu from "@/components/HamburgerMenu";
-import api from "@/lib/api";
+import AppLayout from "@/components/AppLayout";
+import { Activity, Pencil, Save, X, User as UserIcon, Calendar, Trophy, School, ChevronRight } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { useAuthStore } from "@/lib/auth";
+import api from "@/lib/api";
 
 export default function Info() {
   const navigate = useNavigate();
-  const { user, setUser, clearUser } = useAuthStore();
-  const [sessionCount, setSessionCount] = useState<number>(0);
+  const { user: storeUser, setUser, clearUser } = useAuthStore();
+
   const [isEditing, setIsEditing] = useState(false);
+  const [editForm, setEditForm] = useState({
+    first_name: storeUser?.first_name ?? "",
+    last_name: storeUser?.last_name ?? "",
+  });
 
-  const displayName = user
-    ? (user.last_name || user.first_name)
-      ? `${user.last_name ?? ""}${user.first_name ?? ""}`.trim()
-      : user.username
-    : "User";
+  const displayName = storeUser
+    ? `${storeUser.last_name ?? ""}${storeUser.first_name ?? storeUser.username}`
+    : "使用者";
+  const initial = displayName.charAt(0).toUpperCase();
 
-  const [editName, setEditName] = useState(displayName);
-  const [editEmail, setEditEmail] = useState(user?.email ?? "");
-
-  useEffect(() => {
-    if (!user) {
-      api.get("/auth/me")
-        .then((res) => {
-          setUser(res.data);
-          setEditEmail(res.data.email);
-        })
-        .catch(() => navigate("/login"));
+  const handleSave = async () => {
+    // Local update only — no profile update endpoint exists yet
+    if (storeUser) {
+      setUser({ ...storeUser, first_name: editForm.first_name, last_name: editForm.last_name });
     }
-    // 取得歷史筆數
-    api.get("/history")
-      .then((res) => setSessionCount(res.data.length))
-      .catch(() => {});
-  }, [user, setUser, navigate]);
-
-  const handleSave = () => {
     setIsEditing(false);
-    toast({
-      title: "儲存成功",
-      description: "您的個人資料已更新",
-    });
+    toast({ title: "儲存成功", description: "您的個人資料已更新" });
   };
 
   const handleCancel = () => {
-    setEditName(displayName);
-    setEditEmail(user?.email ?? "");
+    setEditForm({
+      first_name: storeUser?.first_name ?? "",
+      last_name: storeUser?.last_name ?? "",
+    });
     setIsEditing(false);
   };
 
   const handleLogout = async () => {
-    await api.post("/auth/logout");
+    try {
+      await api.post("/auth/logout");
+    } catch {
+      // ignore
+    }
     clearUser();
     navigate("/login");
   };
 
   return (
-    <div className="min-h-screen bg-background p-6 max-w-5xl mx-auto">
-      {/* Header with Hamburger Menu */}
-      <div className="flex items-center gap-4 mb-6">
-        <HamburgerMenu />
-        <h1 className="text-2xl font-semibold">個人資料</h1>
-      </div>
+    <AppLayout>
+      <div className="p-8 md:p-12 max-w-5xl mx-auto flex flex-col gap-10 min-h-full animate-in fade-in duration-500">
+        {/* Header */}
+        <div className="flex items-center justify-between pl-12 lg:pl-0">
+          <div className="flex flex-col gap-1">
+            <span className="font-heading text-[10px] font-bold tracking-[0.2em] text-primary uppercase">Personal Space</span>
+            <h1 className="font-heading text-3xl font-bold text-[#3D3831] tracking-tight">個人帳號管理</h1>
+          </div>
+          <Badge className="bg-[#3D3831] text-white px-3 py-1 font-heading text-[10px] tracking-widest uppercase rounded-full">
+            Pro Member
+          </Badge>
+        </div>
 
-       {/* Usage Count Card */}
-       <Card className="max-w-lg mb-6">
-         <CardContent className="p-6 flex items-center gap-4">
-           <div>
-             <p className="text-sm text-muted-foreground">使用次數</p>
-             <p className="text-3xl font-bold">{sessionCount}</p>
-           </div>
-         </CardContent>
-       </Card>
+        <div className="grid md:grid-cols-3 gap-8">
+          {/* Sidebar Stats */}
+          <div className="flex flex-col gap-6">
+            {/* Stats Card */}
+            <div className="bg-[#3D3831] rounded-2xl shadow-xl p-8 flex flex-col items-center text-center gap-4 relative overflow-hidden">
+              <div className="absolute top-0 left-0 w-full h-full chalk-dots opacity-10 pointer-events-none" />
+              <div className="w-16 h-16 rounded-2xl bg-primary/20 flex items-center justify-center text-primary mb-2 relative z-10">
+                <Activity className="w-8 h-8" />
+              </div>
+              <div className="relative z-10">
+                <p className="text-xs text-white/50 font-bold uppercase tracking-widest mb-1">Total Sessions</p>
+                <p className="font-heading text-6xl font-bold text-white tracking-tighter">–</p>
+              </div>
+              <div className="w-full h-px bg-white/10 my-2 relative z-10" />
+              <div className="flex flex-col gap-1 relative z-10">
+                <p className="text-xs text-secondary font-bold uppercase tracking-wider">Skill Level: Expert</p>
+                <p className="text-[11px] text-white/40 font-medium">持續練習中</p>
+              </div>
+            </div>
 
-       <Card className="max-w-lg">
-         <CardHeader>
-           <CardTitle className="text-lg font-medium">基本資訊</CardTitle>
-         </CardHeader>
-        <Separator />
-        <CardContent className="pt-6">
-          <div className="flex flex-col items-center gap-4 mb-6">
-            <Avatar className="h-24 w-24">
-              <AvatarImage src="" alt={displayName} />
-              <AvatarFallback className="bg-muted text-muted-foreground text-2xl">
-                {displayName.charAt(0).toUpperCase()}
-              </AvatarFallback>
-            </Avatar>
-            {!isEditing && (
-              <Button variant="outline" size="sm">
-                更換頭像
-              </Button>
-            )}
+            {/* Achievement Card */}
+            <div className="bg-white border border-[#E5E2D9] rounded-2xl p-6 shadow-sm flex flex-col gap-4">
+               <h3 className="font-heading text-xs font-bold text-[#3D3831] uppercase tracking-widest border-b border-[#E5E2D9] pb-3">成就勳章</h3>
+               <div className="flex flex-wrap gap-3">
+                  {[1, 2, 3].map(i => (
+                    <div key={i} className="w-10 h-10 rounded-full bg-[#FAF9F6] border border-[#E5E2D9] flex items-center justify-center group hover:border-primary transition-colors cursor-help" title="達成 10 次連續 A+">
+                       <Trophy className="w-5 h-5 text-[#A09C94] group-hover:text-primary transition-colors" />
+                    </div>
+                  ))}
+               </div>
+            </div>
           </div>
 
-          {isEditing ? (
-            <div className="space-y-4">
-              <div>
-                <Label htmlFor="name">姓名</Label>
-                <Input
-                  id="name"
-                  value={editName}
-                  onChange={(e) => setEditName(e.target.value)}
-                  className="mt-1"
-                />
+          {/* Main Profile Form */}
+          <div className="md:col-span-2 flex flex-col gap-6">
+            <div className="bg-white border border-[#E5E2D9] rounded-2xl shadow-sm overflow-hidden">
+              {/* Profile Top Banner */}
+              <div className="h-24 bg-[#FAF9F6] border-b border-[#E5E2D9] relative">
+                 <div className="absolute -bottom-12 left-8">
+                    <div className="relative group">
+                       <Avatar className="h-24 w-24 border-4 border-white shadow-xl bg-white">
+                         <AvatarImage src={undefined} />
+                         <AvatarFallback className="bg-primary text-white text-2xl font-heading font-bold">
+                           {initial}
+                         </AvatarFallback>
+                       </Avatar>
+                       <div className="absolute inset-0 bg-black/40 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer">
+                          <UserIcon className="w-6 h-6 text-white" />
+                       </div>
+                    </div>
+                 </div>
+                 <div className="absolute bottom-4 right-8">
+                    {!isEditing ? (
+                      <button
+                        onClick={() => setIsEditing(true)}
+                        className="flex items-center gap-2 px-4 py-2 bg-white border border-[#E5E2D9] rounded-lg text-xs font-bold text-[#3D3831] hover:border-primary hover:text-primary transition-all shadow-sm"
+                      >
+                        <Pencil className="w-3.5 h-3.5" />
+                        編輯基本資料
+                      </button>
+                    ) : (
+                      <div className="flex gap-2">
+                        <button onClick={handleCancel} className="flex items-center gap-2 px-4 py-2 bg-white border border-[#E5E2D9] rounded-lg text-xs font-bold text-[#706C61] hover:bg-muted/30 transition-all">
+                          <X className="w-3.5 h-3.5" />
+                          取消
+                        </button>
+                        <button onClick={handleSave} className="flex items-center gap-2 px-4 py-2 bg-primary text-white rounded-lg text-xs font-bold shadow-lg shadow-primary/20 hover:bg-[#C8694F] transition-all">
+                          <Save className="w-3.5 h-3.5" />
+                          儲存變更
+                        </button>
+                      </div>
+                    )}
+                 </div>
               </div>
-              <div>
-                <Label htmlFor="email">電子郵件</Label>
-                <Input
-                  id="email"
-                  type="email"
-                  value={editEmail}
-                  onChange={(e) => setEditEmail(e.target.value)}
-                  className="mt-1"
-                />
-              </div>
-              <div className="flex gap-2 pt-4">
-                <Button variant="outline" onClick={handleCancel}>
-                  取消
-                </Button>
-                <Button onClick={handleSave}>儲存</Button>
+
+              {/* Form Content */}
+              <div className="pt-16 pb-10 px-10">
+                <div className="mb-8">
+                   <h2 className="font-heading text-xl font-bold text-[#3D3831]">{displayName}</h2>
+                   <p className="text-sm text-[#706C61] font-medium flex items-center gap-2 mt-1">
+                      <Calendar className="w-3.5 h-3.5" />
+                      {storeUser?.email}
+                   </p>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-8">
+                  {/* Field Last Name */}
+                  <div className="flex flex-col gap-2">
+                    <Label className="font-heading text-[10px] font-bold text-[#A09C94] uppercase tracking-[0.15em]">姓氏</Label>
+                    {isEditing ? (
+                      <Input value={editForm.last_name} onChange={e => setEditForm({...editForm, last_name: e.target.value})} className="bg-[#FAF9F6] border-[#E5E2D9] rounded-xl font-medium" />
+                    ) : (
+                      <div className="h-10 flex items-center px-4 bg-[#FAF9F6] rounded-lg border border-transparent font-bold text-[#3D3831]">{storeUser?.last_name || "–"}</div>
+                    )}
+                  </div>
+
+                  {/* Field First Name */}
+                  <div className="flex flex-col gap-2">
+                    <Label className="font-heading text-[10px] font-bold text-[#A09C94] uppercase tracking-[0.15em]">名字</Label>
+                    {isEditing ? (
+                      <Input value={editForm.first_name} onChange={e => setEditForm({...editForm, first_name: e.target.value})} className="bg-[#FAF9F6] border-[#E5E2D9] rounded-xl font-medium" />
+                    ) : (
+                      <div className="h-10 flex items-center px-4 bg-[#FAF9F6] rounded-lg border border-transparent font-bold text-[#3D3831]">{storeUser?.first_name || "–"}</div>
+                    )}
+                  </div>
+
+                  {/* Field Username */}
+                  <div className="flex flex-col gap-2">
+                    <Label className="font-heading text-[10px] font-bold text-[#A09C94] uppercase tracking-[0.15em]">用戶名稱</Label>
+                    <div className="h-10 flex items-center px-4 bg-[#FAF9F6] rounded-lg border border-transparent font-bold text-[#3D3831]">
+                      {storeUser?.username || "–"}
+                    </div>
+                  </div>
+
+                  {/* Field Email */}
+                  <div className="flex flex-col gap-2">
+                    <Label className="font-heading text-[10px] font-bold text-[#A09C94] uppercase tracking-[0.15em]">電子郵件</Label>
+                    <div className="h-10 flex items-center px-4 bg-[#FAF9F6] rounded-lg border border-transparent font-bold text-[#3D3831]">{storeUser?.email || "–"}</div>
+                  </div>
+                </div>
               </div>
             </div>
-          ) : (
-            <div className="space-y-4">
-              <div>
-                <Label className="text-muted-foreground">姓名</Label>
-                <p className="mt-1">{displayName}</p>
-              </div>
-              <div>
-                <Label className="text-muted-foreground">電子郵件</Label>
-                <p className="mt-1">{user?.email ?? ""}</p>
-              </div>
-              <div className="flex gap-2 mt-4">
-                <Button
-                  variant="outline"
-                  onClick={() => setIsEditing(true)}
-                >
-                  編輯資料
-                </Button>
-                <Button variant="outline" onClick={handleLogout}>
-                  登出
-                </Button>
-              </div>
+
+            {/* Logout Section */}
+            <div
+              className="bg-white border border-[#E5E2D9] rounded-2xl p-8 shadow-sm flex items-center justify-between group cursor-pointer hover:border-primary/30 transition-all"
+              onClick={handleLogout}
+            >
+               <div className="flex items-center gap-4">
+                  <div className="w-12 h-12 bg-[#FAF9F6] rounded-xl flex items-center justify-center">
+                     <Trophy className="w-6 h-6 text-[#A09C94]" />
+                  </div>
+                  <div>
+                     <h3 className="font-heading text-[15px] font-bold text-[#3D3831]">登出帳號</h3>
+                     <p className="text-xs text-[#706C61] font-medium">安全地登出 SELf-corner</p>
+                  </div>
+               </div>
+               <ChevronRight className="w-5 h-5 text-[#A09C94] group-hover:text-primary transition-all" />
             </div>
-          )}
-        </CardContent>
-      </Card>
-    </div>
+          </div>
+        </div>
+      </div>
+    </AppLayout>
   );
 }

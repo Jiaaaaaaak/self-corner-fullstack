@@ -16,7 +16,7 @@ from dotenv import load_dotenv
 from livekit import rtc
 from livekit.agents import JobContext, JobRequest, WorkerOptions, cli
 
-from agents.prompts import build_student_prompt, TOOLS_SCHEMA, SEMANTIC_ANALYSIS_PROMPT
+from agents.prompts import build_student_prompt, TOOLS_SCHEMA, build_semantic_analysis_prompt
 from database import async_session_maker
 from models import EmotionLog, Session, Scenario, StudentPersonality, Transcript
 from langchain_openai import ChatOpenAI
@@ -148,6 +148,8 @@ class StudentVoicePipeline:
 
         self.turn_count = 0
         self.db_session_id: Optional[int] = None
+        self.last_emotion_scores: dict = {}
+        self.scenario_title: str = ""
 
     async def _resolve_session_id(self) -> Optional[int]:
         """透過 LiveKit room name 查詢對應的 Session ID"""
@@ -201,6 +203,13 @@ class StudentVoicePipeline:
             return "請務必使用繁體中文（台灣用語）。你是一位國中一年級的學生，與老師進行 SEL 對話練習，請自然地回應老師。"
 
         if scenario and personality:
+            self.scenario_title = scenario.title
+            # 使用情境預設的初始情緒；若無則使用通用基準值
+            self.last_emotion_scores = scenario.initial_emotions or {
+                "HAPPY": 0.10, "SAD": 0.20, "ANGRY": 0.05, "SURPRISED": 0.05,
+                "ANXIOUS": 0.30, "FRUSTRATED": 0.15, "CONFIDENT": 0.10,
+                "CURIOUS": 0.15, "NEUTRAL": 0.40,
+            }
             print("[Pipeline] Dynamic prompt assembled successfully.")
             return build_student_prompt(scenario, personality)
 
@@ -283,12 +292,17 @@ class StudentVoicePipeline:
         self.turn_count += 1
         print(f"[Tool] semantic_analysis turn={self.turn_count}: {teacher_input[:50]}...")
 
-        prompt = SEMANTIC_ANALYSIS_PROMPT.format(teacher_input=teacher_input)
+        prompt = build_semantic_analysis_prompt(
+            teacher_input=teacher_input,
+            previous_emotions=self.last_emotion_scores,
+            scenario_title=self.scenario_title,
+        )
         response = await local_analyzer_llm.ainvoke(prompt)
         emotion_json_str = response.content
 
         try:
             emotion_scores = json.loads(emotion_json_str)
+            self.last_emotion_scores = emotion_scores
             if self.db_session_id:
                 async with async_session_maker() as db:
                     log = EmotionLog(

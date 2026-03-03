@@ -3,7 +3,7 @@ import { X, Dices } from "lucide-react";
 
 interface RandomConfirmProps {
   onClose: () => void;
-  onStart: () => void;
+  onStart: (scenario?: any) => void;
 }
 
 export default function RandomConfirm({ onClose, onStart }: RandomConfirmProps) {
@@ -30,7 +30,7 @@ export default function RandomConfirm({ onClose, onStart }: RandomConfirmProps) 
         </div>
 
         <div className="flex justify-center mt-6">
-          <Button size="lg" onClick={onStart}>
+          <Button size="lg" onClick={() => onStart()}>
             開始對話
           </Button>
         </div>

@@ -1,9 +1,6 @@
 import { useState, useRef, useEffect } from "react";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { ScrollArea } from "@/components/ui/scroll-area";
-import { Mic, MicOff, Send, Pause, Play, LogOut, Loader2 } from "lucide-react";
-import { Room, RoomEvent, Track } from "livekit-client";
+import { Mic, Send, Pause, Play, SquareSquare, Disc2, Loader2 } from "lucide-react";
+import { Room, RoomEvent, Track, DataPacket_Kind } from "livekit-client";
 
 interface ChatMessage {
   role: "teacher" | "student";
@@ -14,55 +11,31 @@ interface ChatPanelProps {
   isPaused: boolean;
   onTogglePause: () => void;
   onEnd: () => void;
+  onEmotionChange?: (emotion: string) => void;
   livekitToken: string | null;
-  livekitUrl: string | null;
-  isEnding?: boolean;
 }
 
-export default function ChatPanel({
-  isPaused,
-  onTogglePause,
-  onEnd,
-  livekitToken,
-  livekitUrl,
-  isEnding = false,
-}: ChatPanelProps) {
+const LIVEKIT_URL = import.meta.env.VITE_LIVEKIT_URL ?? "ws://localhost:7880";
+
+export default function ChatPanel({ isPaused, onTogglePause, onEnd, onEmotionChange, livekitToken }: ChatPanelProps) {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [inputText, setInputText] = useState("");
-  const [micOn, setMicOn] = useState(true);
+  const [isRecording, setIsRecording] = useState(false);
+  const [isThinking, setIsThinking] = useState(false);
   const bottomRef = useRef<HTMLDivElement>(null);
   const roomRef = useRef<Room | null>(null);
   const audioElementsRef = useRef<HTMLAudioElement[]>([]);
 
-  // =========================================================================
-  // LiveKit 連線
-  // =========================================================================
+  // Connect to LiveKit
   useEffect(() => {
-    if (!livekitToken || !livekitUrl) return;
+    if (!livekitToken) return;
 
     const room = new Room();
     roomRef.current = room;
 
-    // 監聽資料頻道（接收學生回應 & 老師逐字稿）
-    room.on(RoomEvent.DataReceived, (payload: Uint8Array) => {
-      try {
-        const text = new TextDecoder().decode(payload);
-        const data = JSON.parse(text) as { type: string; text?: string };
-
-        if (data.type === "agent_response" && data.text) {
-          setMessages((prev) => [...prev, { role: "student", content: data.text! }]);
-        } else if (data.type === "user_transcription" && data.text) {
-          setMessages((prev) => [...prev, { role: "teacher", content: data.text! }]);
-        }
-      } catch {
-        // 忽略非 JSON 資料
-      }
-    });
-
-    // 播放遠端音訊（學生語音）
-    room.on(RoomEvent.TrackSubscribed, (track, _publication, participant) => {
+    // Handle remote audio tracks (student voice)
+    room.on(RoomEvent.TrackSubscribed, (track, _publication, _participant) => {
       if (track.kind === Track.Kind.Audio) {
-        console.log("[LiveKit] Remote audio track subscribed from:", participant.identity);
         const el = track.attach() as HTMLAudioElement;
         el.autoplay = true;
         document.body.appendChild(el);
@@ -70,58 +43,88 @@ export default function ChatPanel({
       }
     });
 
-    room.connect(livekitUrl, livekitToken).then(async () => {
-      console.log("[LiveKit] Connected to room:", room.name);
+    // Handle data messages from agent (transcripts)
+    room.on(RoomEvent.DataReceived, (payload: Uint8Array, _participant, _kind) => {
       try {
-        // 初始啟用麥克風（必須在 connect 後才能呼叫）
-        await room.localParticipant.setMicrophoneEnabled(true);
-        // 確保瀏覽器允許播放遠端音訊（學生語音）
-        await room.startAudio();
-      } catch (err) {
-        console.error("[LiveKit] Audio setup failed:", err);
+        const msg = JSON.parse(new TextDecoder().decode(payload));
+        if (msg.type === "agent_response" && msg.text) {
+          setIsThinking(false);
+          setMessages((prev) => [...prev, { role: "student", content: msg.text }]);
+          if (onEmotionChange) onEmotionChange("neutral");
+        } else if (msg.type === "user_transcription" && msg.text) {
+          setMessages((prev) => [...prev, { role: "teacher", content: msg.text }]);
+          setIsThinking(true);
+          if (onEmotionChange) onEmotionChange("thinking");
+        }
+      } catch {
+        // ignore malformed messages
       }
+    });
+
+    // Scan existing tracks (agent might already be in room)
+    room.on(RoomEvent.ParticipantConnected, (participant) => {
+      participant.trackPublications.forEach((pub) => {
+        if (pub.track && pub.track.kind === Track.Kind.Audio) {
+          const el = pub.track.attach() as HTMLAudioElement;
+          el.autoplay = true;
+          document.body.appendChild(el);
+          audioElementsRef.current.push(el);
+        }
+      });
+    });
+
+    room.connect(LIVEKIT_URL, livekitToken, {
+      autoSubscribe: true,
+    }).then(() => {
+      // Unlock audio context on connect
+      room.startAudio();
     }).catch((err) => {
-      console.error("[LiveKit] Connection failed:", err);
+      console.error("[ChatPanel] LiveKit connect failed:", err);
     });
 
     return () => {
+      room.disconnect();
       audioElementsRef.current.forEach((el) => {
         el.pause();
-        el.srcObject = null;
         el.remove();
       });
       audioElementsRef.current = [];
-      room.disconnect();
     };
-  }, [livekitToken, livekitUrl]);
+  }, [livekitToken]);
 
-  // 麥克風開關
-  useEffect(() => {
-    if (!roomRef.current) return;
-    roomRef.current.localParticipant.setMicrophoneEnabled(micOn && !isPaused);
-  }, [micOn, isPaused]);
-
-  // =========================================================================
-  // 訊息自動捲動
-  // =========================================================================
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
 
-  // =========================================================================
-  // 文字傳送（透過 LiveKit data channel 送給 agent，觸發 AI 學生語音回應）
-  // =========================================================================
   const handleSend = async () => {
     const text = inputText.trim();
-    if (!text) return;
+    if (!text || isThinking || isPaused) return;
+
     setMessages((prev) => [...prev, { role: "teacher", content: text }]);
     setInputText("");
+    setIsThinking(true);
+    if (onEmotionChange) onEmotionChange("thinking");
 
     if (roomRef.current) {
-      const payload = new TextEncoder().encode(
-        JSON.stringify({ type: "teacher_text_input", text })
-      );
-      await roomRef.current.localParticipant.publishData(payload, { reliable: true });
+      try {
+        const payload = new TextEncoder().encode(
+          JSON.stringify({ type: "teacher_text_input", text })
+        );
+        await roomRef.current.localParticipant.publishData(payload, { reliable: true });
+      } catch (err) {
+        console.error("[ChatPanel] Failed to send text:", err);
+        setIsThinking(false);
+      }
+    } else {
+      // No LiveKit connection — simulate response after delay
+      setTimeout(() => {
+        setIsThinking(false);
+        setMessages((prev) => [
+          ...prev,
+          { role: "student", content: "（尚未連線，請確認後端服務是否啟動）" },
+        ]);
+        if (onEmotionChange) onEmotionChange("neutral");
+      }, 2000);
     }
   };
 
@@ -132,87 +135,129 @@ export default function ChatPanel({
     }
   };
 
+  const toggleRecording = async () => {
+    if (!roomRef.current) return;
+    if (isRecording) {
+      // Stop publishing mic
+      await roomRef.current.localParticipant.setMicrophoneEnabled(false);
+      setIsRecording(false);
+    } else {
+      // Start publishing mic
+      try {
+        await roomRef.current.localParticipant.setMicrophoneEnabled(true);
+        setIsRecording(true);
+        if (onEmotionChange) onEmotionChange("thinking");
+      } catch (err) {
+        console.error("[ChatPanel] Mic enable failed:", err);
+      }
+    }
+  };
+
+  // Only show recent messages to preserve screen space
+  const visibleMessages = messages.slice(-3);
+
   return (
-    <div className="absolute bottom-0 left-0 right-0 h-1/4 bg-background/70 backdrop-blur-md border-t border-border/50 flex flex-col p-3 gap-2">
-      {/* Chat messages */}
-      <ScrollArea className="flex-1">
-        <div className="space-y-2 pr-2">
-          {messages.map((msg, i) => (
-            <div key={i} className={`flex ${msg.role === "teacher" ? "justify-end" : "justify-start"}`}>
+    <div className="absolute bottom-0 left-0 right-0 flex flex-col z-30">
+      {/* Chat messages - transparent, minimal, only recent */}
+      <div className="px-8 py-4">
+        <div className="max-w-4xl mx-auto flex flex-col gap-4">
+          {visibleMessages.map((msg, i) => (
+            <div
+              key={messages.length - visibleMessages.length + i}
+              className={`flex ${msg.role === "teacher" ? "justify-end" : "justify-start"} animate-in fade-in slide-in-from-bottom-2 duration-300`}
+            >
+              {msg.role === "student" && (
+                <div className="w-8 h-8 rounded-full bg-white/80 backdrop-blur-sm border border-[#E5E2D9]/50 flex items-center justify-center shrink-0 mr-2.5 self-end shadow-sm">
+                  <span className="text-[10px] font-bold text-[#706C61]">小</span>
+                </div>
+              )}
               <div
-                className={`max-w-[70%] rounded-lg px-3 py-2 text-sm ${
+                className={`max-w-[65%] px-5 py-3 text-[15px] font-medium leading-relaxed shadow-lg ${
                   msg.role === "teacher"
-                    ? "bg-primary/15 text-foreground"
-                    : "bg-muted text-foreground"
+                    ? "bg-primary/90 backdrop-blur-sm text-white rounded-[18px] rounded-tr-sm"
+                    : "bg-white/85 backdrop-blur-sm text-[#3D3831] rounded-[18px] rounded-tl-sm border border-white/50"
                 }`}
               >
-                <span className="text-xs text-muted-foreground font-medium">
-                  {msg.role === "teacher" ? "👩‍🏫 老師" : "🧑‍🎓 學生"}
-                </span>
                 <p>{msg.content}</p>
               </div>
             </div>
           ))}
+          {isThinking && (
+            <div className="flex justify-start animate-in fade-in duration-300">
+              <div className="w-8 h-8 rounded-full bg-white/80 backdrop-blur-sm border border-[#E5E2D9]/50 flex items-center justify-center shrink-0 mr-2.5 self-end shadow-sm">
+                <Loader2 className="w-3.5 h-3.5 text-[#706C61] animate-spin" />
+              </div>
+              <div className="bg-white/80 backdrop-blur-sm border border-white/50 px-5 py-3 rounded-[18px] rounded-tl-sm shadow-lg">
+                <div className="flex gap-1.5">
+                  <div className="w-2 h-2 bg-[#A09C94] rounded-full animate-bounce [animation-delay:-0.3s]" />
+                  <div className="w-2 h-2 bg-[#A09C94] rounded-full animate-bounce [animation-delay:-0.15s]" />
+                  <div className="w-2 h-2 bg-[#A09C94] rounded-full animate-bounce" />
+                </div>
+              </div>
+            </div>
+          )}
           <div ref={bottomRef} />
         </div>
-      </ScrollArea>
+      </div>
 
-      {/* Input row */}
-      <div className="flex items-center gap-2">
-        <Input
-          value={inputText}
-          onChange={(e) => setInputText(e.target.value)}
-          onKeyDown={handleKeyDown}
-          placeholder="輸入文字回應..."
-          className="flex-1"
-          disabled={isPaused}
-        />
+      {/* Input bar */}
+      <div className="px-8 py-5">
+        <div className="max-w-4xl mx-auto flex items-center gap-3">
+          {/* Text input - takes most space */}
+          <div className="flex-1 flex items-center h-12 px-5 bg-white/80 backdrop-blur-md border border-white/50 rounded-full shadow-lg focus-within:ring-2 focus-within:ring-primary/20 focus-within:border-primary/30 transition-all">
+            <input
+              value={inputText}
+              onChange={(e) => setInputText(e.target.value)}
+              onKeyDown={handleKeyDown}
+              placeholder={isRecording ? "正在聆聽您的聲音..." : "輸入文字回應..."}
+              className="flex-1 text-[14px] bg-transparent outline-none placeholder:text-[#A09C94] text-[#3D3831] font-medium"
+              disabled={isPaused || isRecording}
+            />
+          </div>
 
-        {/* Mic toggle */}
-        <Button
-          variant="outline"
-          size="icon"
-          className="rounded-full shrink-0"
-          onClick={() => setMicOn(!micOn)}
-          title={micOn ? "關閉麥克風" : "開啟麥克風"}
-        >
-          {micOn ? <Mic className="h-4 w-4" /> : <MicOff className="h-4 w-4" />}
-        </Button>
+          {/* Right side controls */}
+          <div className="flex items-center gap-2">
+            {/* Mic button */}
+            <button
+              onClick={toggleRecording}
+              disabled={isPaused}
+              className={`w-12 h-12 rounded-full flex items-center justify-center shrink-0 shadow-lg transition-all active:scale-95 ${
+                isRecording
+                  ? "bg-destructive text-white ring-4 ring-destructive/20 animate-pulse"
+                  : "bg-primary text-white hover:bg-primary/90 hover:scale-105"
+              } disabled:opacity-50`}
+            >
+              {isRecording ? <Disc2 className="w-5 h-5" /> : <Mic className="w-5 h-5" />}
+            </button>
 
-        {/* Send */}
-        <Button
-          variant="outline"
-          size="icon"
-          className="rounded-full shrink-0"
-          onClick={handleSend}
-          disabled={!inputText.trim() || isPaused}
-          title="傳送"
-        >
-          <Send className="h-4 w-4" />
-        </Button>
+            {/* Send button */}
+            <button
+              onClick={handleSend}
+              disabled={!inputText.trim() || isPaused}
+              className="w-12 h-12 rounded-full flex items-center justify-center bg-white/80 backdrop-blur-sm border border-white/50 text-[#3D3831] hover:text-primary hover:scale-105 transition-all shadow-lg disabled:opacity-40 active:scale-95"
+            >
+              <Send className="w-5 h-5" />
+            </button>
 
-        {/* Pause/Resume */}
-        <Button
-          variant="outline"
-          size="icon"
-          className="rounded-full shrink-0"
-          onClick={onTogglePause}
-          title={isPaused ? "繼續" : "暫停"}
-        >
-          {isPaused ? <Play className="h-4 w-4" /> : <Pause className="h-4 w-4" />}
-        </Button>
+            {/* Pause button */}
+            <button
+              onClick={onTogglePause}
+              className="w-12 h-12 rounded-full flex items-center justify-center bg-white/80 backdrop-blur-sm border border-white/50 text-[#706C61] hover:text-primary transition-all shadow-lg hover:scale-105 active:scale-95"
+              title={isPaused ? "繼續練習" : "暫停練習"}
+            >
+              {isPaused ? <Play className="w-5 h-5 fill-current" /> : <Pause className="w-5 h-5" />}
+            </button>
 
-        {/* End */}
-        <Button
-          variant="outline"
-          size="icon"
-          className="rounded-full shrink-0"
-          onClick={onEnd}
-          disabled={isEnding}
-          title={isEnding ? "產生回饋中..." : "結束對話"}
-        >
-          {isEnding ? <Loader2 className="h-4 w-4 animate-spin" /> : <LogOut className="h-4 w-4" />}
-        </Button>
+            {/* End button */}
+            <button
+              onClick={onEnd}
+              className="w-12 h-12 rounded-full flex items-center justify-center bg-white/80 backdrop-blur-sm border border-white/50 text-[#706C61] hover:text-destructive transition-all shadow-lg hover:scale-105 active:scale-95"
+              title="結束對話"
+            >
+              <SquareSquare className="w-5 h-5" />
+            </button>
+          </div>
+        </div>
       </div>
     </div>
   );

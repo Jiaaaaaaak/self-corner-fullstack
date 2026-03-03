@@ -5,7 +5,7 @@ Seed Data - 預填情境與學生個性初始資料
 import asyncio
 from database import async_session_maker, init_db
 from models import Scenario, StudentPersonality, User
-from sqlalchemy import select
+from sqlalchemy import select, text
 from core.auth_module import hash_password
 
 
@@ -20,6 +20,17 @@ SCENARIOS = [
             "他開始質疑自己的能力，甚至不想再上學。"
             "作為老師，你需要引導他認識情緒、接納失敗，並重建自信。"
         ),
+        "student_prompt": (
+            "我剛剛考試考很差，我覺得自己很糟糕。我一直在想，如果我再努力一點就好了，"
+            "為什麼我這麼笨？我不想讓爸媽失望，但我真的很想哭。"
+            "我甚至覺得不想去上學了，反正去了也沒用。"
+            "老師現在過來跟我說話，但我不知道該說什麼。"
+        ),
+        "initial_emotions": {
+            "HAPPY": 0.05, "SAD": 0.70, "ANGRY": 0.05, "SURPRISED": 0.05,
+            "ANXIOUS": 0.50, "FRUSTRATED": 0.60, "CONFIDENT": 0.05,
+            "CURIOUS": 0.05, "NEUTRAL": 0.10
+        },
     },
     {
         "id": 2,
@@ -31,6 +42,17 @@ SCENARIOS = [
             "他表面上裝作無所謂，但內心其實很受傷。"
             "你需要幫助他理解社交動態，並找到融入團體的方式。"
         ),
+        "student_prompt": (
+            "今天班上分組活動，我又是最後一個被選到的——或者說，是老師把我硬塞進去的。"
+            "我假裝沒在意，但其實心裡很痛。"
+            "我不知道為什麼大家都不想跟我同組，是我哪裡不好嗎？"
+            "我不想讓大家看出來我很在乎，所以我盡量裝作無所謂。老師現在來找我說話了。"
+        ),
+        "initial_emotions": {
+            "HAPPY": 0.05, "SAD": 0.55, "ANGRY": 0.10, "SURPRISED": 0.05,
+            "ANXIOUS": 0.40, "FRUSTRATED": 0.45, "CONFIDENT": 0.05,
+            "CURIOUS": 0.10, "NEUTRAL": 0.30
+        },
     },
     {
         "id": 3,
@@ -41,6 +63,17 @@ SCENARIOS = [
             "學生在課堂上被同學誤解並當眾指責，他非常憤怒，差點失控動手。"
             "你需要在這個情緒高漲的時刻幫助他冷靜下來，學習如何管理憤怒情緒。"
         ),
+        "student_prompt": (
+            "我超生氣的！剛才上課，同學說是我把他的東西拿走，但我根本沒有！"
+            "老師還沒查清楚就開始說我，全班都看著我，我覺得好丟臉又好憤怒。"
+            "我差點就動手了，但我忍住了。"
+            "我現在還是很激動，就算老師來跟我說話，我也不知道能不能冷靜下來說清楚。"
+        ),
+        "initial_emotions": {
+            "HAPPY": 0.05, "SAD": 0.20, "ANGRY": 0.80, "SURPRISED": 0.30,
+            "ANXIOUS": 0.30, "FRUSTRATED": 0.75, "CONFIDENT": 0.10,
+            "CURIOUS": 0.05, "NEUTRAL": 0.05
+        },
     },
     {
         "id": 4,
@@ -52,6 +85,17 @@ SCENARIOS = [
             "他既想和好，又覺得委屈。"
             "你需要引導他學習溝通技巧，修復友誼關係。"
         ),
+        "student_prompt": (
+            "我跟我最好的朋友為了一件蠢事吵架了。"
+            "我知道可能我也有一點錯，但他先說難聽的話的啊！"
+            "我很想跟他和好，可是我覺得委屈，不想先去道歉。"
+            "老師現在來問我怎麼了，我不知道要怎麼解釋，我心裡很亂。"
+        ),
+        "initial_emotions": {
+            "HAPPY": 0.10, "SAD": 0.55, "ANGRY": 0.20, "SURPRISED": 0.10,
+            "ANXIOUS": 0.45, "FRUSTRATED": 0.35, "CONFIDENT": 0.10,
+            "CURIOUS": 0.10, "NEUTRAL": 0.15
+        },
     },
     {
         "id": 5,
@@ -63,6 +107,18 @@ SCENARIOS = [
             "他不敢主動交朋友，午餐時間總是一個人。"
             "你需要幫助他建立安全感，逐步適應新環境。"
         ),
+        "student_prompt": (
+            "我上個月才轉學來這裡，班上沒有人認識我。"
+            "每天上課我都很緊張，不敢跟旁邊的人說話，怕說錯話。"
+            "午餐時間我都自己坐，裝作在滑手機。"
+            "其實我很希望有人來跟我說話，但我自己又不敢主動。"
+            "老師今天來找我聊天，我緊張又期待，不知道說什麼好。"
+        ),
+        "initial_emotions": {
+            "HAPPY": 0.05, "SAD": 0.30, "ANGRY": 0.05, "SURPRISED": 0.10,
+            "ANXIOUS": 0.75, "FRUSTRATED": 0.20, "CONFIDENT": 0.05,
+            "CURIOUS": 0.15, "NEUTRAL": 0.20
+        },
     },
     {
         "id": 6,
@@ -73,6 +129,17 @@ SCENARIOS = [
             "學生在考試中作弊被發現，他感到非常羞愧，不知道如何面對老師和同學。"
             "你需要引導他理解誠實的重要性，並幫助他做出負責任的決定。"
         ),
+        "student_prompt": (
+            "我今天考試的時候偷看了旁邊同學的答案，然後被老師發現了。"
+            "我真的很羞愧，我不知道當時為什麼要這樣做，大概是因為很怕考不好吧。"
+            "現在我必須去面對老師，我的臉都紅了，腿都在抖。"
+            "我不知道老師會怎麼處理這件事，也不知道同學們都在想什麼。"
+        ),
+        "initial_emotions": {
+            "HAPPY": 0.05, "SAD": 0.45, "ANGRY": 0.10, "SURPRISED": 0.10,
+            "ANXIOUS": 0.65, "FRUSTRATED": 0.30, "CONFIDENT": 0.05,
+            "CURIOUS": 0.05, "NEUTRAL": 0.10
+        },
     },
     {
         "id": 7,
@@ -84,6 +151,16 @@ SCENARIOS = [
             "這種情況讓他越來越害怕上課。"
             "你需要幫助他找到管理緊張情緒的方法。"
         ),
+        "student_prompt": (
+            "我最怕被老師點名了。每次站起來，我的腦子就一片空白，心跳得很快，說話也會結巴。"
+            "今天又被點到了，雖然我有念書，但站起來的瞬間全都忘光了，好丟臉。"
+            "老師現在說要跟我談談，我更緊張了，我怕等一下又說不出話來。"
+        ),
+        "initial_emotions": {
+            "HAPPY": 0.05, "SAD": 0.15, "ANGRY": 0.05, "SURPRISED": 0.20,
+            "ANXIOUS": 0.80, "FRUSTRATED": 0.25, "CONFIDENT": 0.05,
+            "CURIOUS": 0.10, "NEUTRAL": 0.20
+        },
     },
     {
         "id": 8,
@@ -94,6 +171,17 @@ SCENARIOS = [
             "學生發現好朋友對老師撒了謊，他陷入兩難——告訴老師會背叛朋友，不說又覺得不對。"
             "你需要引導他思考道德決策的複雜性。"
         ),
+        "student_prompt": (
+            "我知道一件事，就是我的好朋友上次跟老師說他的作業忘在家裡，但其實他根本沒做。"
+            "現在老師問我說有沒有人知道是怎麼回事，我很兩難——"
+            "說實話的話，朋友會恨我；不說的話，我覺得自己也在說謊。"
+            "老師現在看著我，我不知道該說什麼。"
+        ),
+        "initial_emotions": {
+            "HAPPY": 0.10, "SAD": 0.30, "ANGRY": 0.10, "SURPRISED": 0.15,
+            "ANXIOUS": 0.55, "FRUSTRATED": 0.30, "CONFIDENT": 0.15,
+            "CURIOUS": 0.20, "NEUTRAL": 0.20
+        },
     },
     {
         "id": 9,
@@ -105,6 +193,18 @@ SCENARIOS = [
             "他不知道該如何彌補。"
             "你需要幫助他理解自己行為對他人的影響，並採取修復行動。"
         ),
+        "student_prompt": (
+            "我和幾個朋友最近一直在排擠班上的一個同學，不讓他加入我們的聊天群組，假裝他不存在。"
+            "但是今天我看到他一個人坐在角落，表情看起來很難過，我突然覺得很對不起他。"
+            "我知道我做錯了，但我不知道該怎麼彌補，"
+            "我也怕如果我現在去道歉，朋友會說我背叛他們。"
+            "老師找我來說話，我很緊張，怕被問到這件事。"
+        ),
+        "initial_emotions": {
+            "HAPPY": 0.05, "SAD": 0.60, "ANGRY": 0.05, "SURPRISED": 0.05,
+            "ANXIOUS": 0.40, "FRUSTRATED": 0.20, "CONFIDENT": 0.10,
+            "CURIOUS": 0.05, "NEUTRAL": 0.15
+        },
     },
     {
         "id": 10,
@@ -115,6 +215,17 @@ SCENARIOS = [
             "學生在校際比賽中惜敗，覺得不公平而非常不甘心，甚至遷怒隊友。"
             "你需要幫助他處理失落情緒，並學會從失敗中成長。"
         ),
+        "student_prompt": (
+            "我們班在校際競賽輸了，我覺得超級不甘心，因為對手明明有犯規，裁判卻沒有看到！"
+            "我很憤怒，我衝口就說隊友某某某沒有發揮好，結果大家都覺得我在推卸責任。"
+            "我其實也知道說錯了，但我就是很不服氣，覺得這次輸得很冤。"
+            "老師來找我，我心裡還是很火大。"
+        ),
+        "initial_emotions": {
+            "HAPPY": 0.05, "SAD": 0.45, "ANGRY": 0.55, "SURPRISED": 0.15,
+            "ANXIOUS": 0.20, "FRUSTRATED": 0.70, "CONFIDENT": 0.10,
+            "CURIOUS": 0.05, "NEUTRAL": 0.05
+        },
     },
 ]
 
@@ -208,18 +319,42 @@ TEST_USER = {
 }
 
 
+async def migrate_db():
+    """為既有資料庫新增欄位（冪等操作，可安全重複執行）"""
+    async with async_session_maker() as db:
+        await db.execute(text(
+            "ALTER TABLE scenarios ADD COLUMN IF NOT EXISTS student_prompt TEXT"
+        ))
+        await db.execute(text(
+            "ALTER TABLE scenarios ADD COLUMN IF NOT EXISTS initial_emotions JSONB"
+        ))
+        await db.commit()
+    print("[Migrate] scenarios 表欄位更新完成（student_prompt, initial_emotions）。")
+
+
 async def seed():
     await init_db()
+    await migrate_db()
 
     async with async_session_maker() as db:
-        # 情境資料
-        existing = await db.execute(select(Scenario).limit(1))
-        if not existing.scalar_one_or_none():
-            for s in SCENARIOS:
+        # 情境資料（UPSERT：存在則更新新欄位，不存在則插入）
+        inserted = 0
+        updated = 0
+        for s in SCENARIOS:
+            result = await db.execute(select(Scenario).where(Scenario.id == s["id"]))
+            existing = result.scalar_one_or_none()
+            if existing:
+                existing.student_prompt = s.get("student_prompt")
+                existing.initial_emotions = s.get("initial_emotions")
+                updated += 1
+            else:
                 db.add(Scenario(**s))
-            print(f"[Seed] Inserted {len(SCENARIOS)} scenarios.")
-        else:
-            print("[Seed] Scenarios already exist, skipping.")
+                inserted += 1
+
+        if inserted:
+            print(f"[Seed] Inserted {inserted} scenarios.")
+        if updated:
+            print(f"[Seed] Updated {updated} scenarios (student_prompt + initial_emotions).")
 
         # 學生個性資料
         existing = await db.execute(select(StudentPersonality).limit(1))

@@ -43,6 +43,19 @@ class TranscriptEntry(BaseModel):
     timestamp: str
 
 
+class EmotionLogEntry(BaseModel):
+    turn_number: int
+    happy: float
+    sad: float
+    angry: float
+    surprised: float
+    anxious: float
+    frustrated: float
+    confident: float
+    curious: float
+    neutral: float
+
+
 class FeedbackReportResponse(BaseModel):
     session_uuid: str
     scenario_title: Optional[str]
@@ -51,6 +64,7 @@ class FeedbackReportResponse(BaseModel):
     analysis_text: str
     selected_kist_cards: list
     transcript: List[TranscriptEntry]
+    emotion_logs: List[EmotionLogEntry]
     generated_at: Optional[str]
 
 
@@ -90,6 +104,7 @@ async def get_feedback(
         raise HTTPException(status_code=404, detail="回饋報告尚未生成")
 
     transcripts = await db_manager.get_session_transcripts(session.id)
+    emotion_logs = await db_manager.get_emotion_logs_by_session(session.id)
 
     scenario_title = None
     if session.scenario_id:
@@ -110,6 +125,21 @@ async def get_feedback(
                 timestamp=t.timestamp.isoformat() if t.timestamp else "",
             )
             for t in transcripts
+        ],
+        emotion_logs=[
+            EmotionLogEntry(
+                turn_number=e.turn_number,
+                happy=e.happy,
+                sad=e.sad,
+                angry=e.angry,
+                surprised=e.surprised,
+                anxious=e.anxious,
+                frustrated=e.frustrated,
+                confident=e.confident,
+                curious=e.curious,
+                neutral=e.neutral,
+            )
+            for e in emotion_logs
         ],
         generated_at=report.generated_at.isoformat() if report.generated_at else None,
     )
@@ -139,12 +169,40 @@ async def coach_chat(
         raise HTTPException(status_code=404, detail="回饋報告尚未生成，無法開始討論")
 
     transcripts = await db_manager.get_session_transcripts(session.id)
+    emotion_logs = await db_manager.get_emotion_logs_by_session(session.id)
+
+    # 組裝情境資訊
+    scenario_info = "（無情境資訊）"
+    if session.scenario_id:
+        scenario = await db_manager.get_scenario_by_id(session.scenario_id)
+        if scenario:
+            scenario_info = (
+                f"情境名稱：{scenario.title}\n"
+                f"情境類別：{scenario.sel_category}\n"
+                f"情境說明：{scenario.description}"
+            )
 
     # 組裝逐字稿字串
     transcript_str = "\n".join(
         f"{'老師' if t.speaker == 'teacher' else '學生'}：{t.text}"
         for t in transcripts
     )
+
+    # 組裝情緒變化摘要
+    if emotion_logs:
+        emotion_lines = []
+        for log in emotion_logs:
+            scores = {
+                "開心": log.happy, "悲傷": log.sad, "憤怒": log.angry,
+                "驚訝": log.surprised, "焦慮": log.anxious, "挫折": log.frustrated,
+                "自信": log.confident, "好奇": log.curious, "中性": log.neutral,
+            }
+            top3 = sorted(scores.items(), key=lambda x: x[1], reverse=True)[:3]
+            top_str = "、".join(f"{k}({v:.0%})" for k, v in top3 if v >= 0.1)
+            emotion_lines.append(f"第 {log.turn_number} 輪：{top_str or '情緒平穩'}")
+        emotion_summary = "\n".join(emotion_lines)
+    else:
+        emotion_summary = "（本次無情緒分析記錄）"
 
     # 組裝 SEL 分數字串
     sel_scores_str = "\n".join(
@@ -153,7 +211,9 @@ async def coach_chat(
 
     # 組裝系統提示
     system_prompt = COACH_CHAT_SYSTEM_PROMPT.format(
+        scenario_info=scenario_info,
         transcript=transcript_str,
+        emotion_summary=emotion_summary,
         sel_scores=sel_scores_str,
         analysis=report.analysis_text,
         feedback=report.feedback_text,
