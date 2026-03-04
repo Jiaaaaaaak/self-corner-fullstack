@@ -1,0 +1,285 @@
+import { useState } from "react";
+import { useNavigate } from "react-router-dom";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from "@/components/ui/dialog";
+import { toast } from "@/hooks/use-toast";
+import { Eye, EyeOff, Mail, Lock, Loader2, AlertCircle } from "lucide-react";
+
+export default function Login() {
+  const navigate = useNavigate();
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
+  const [isValidating, setIsValidating] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [shouldShake, setShouldShake] = useState(false);
+
+  const [registerOpen, setRegisterOpen] = useState(false);
+  const [regUsername, setRegUsername] = useState("");
+  const [regLastName, setRegLastName] = useState("");
+  const [regFirstName, setRegFirstName] = useState("");
+  const [regEmail, setRegEmail] = useState("");
+  const [regPassword, setRegPassword] = useState("");
+  const [regConfirmPassword, setRegConfirmPassword] = useState("");
+  const [regErrors, setRegErrors] = useState<Record<string, string>>({});
+  const [showRegPassword, setShowRegPassword] = useState(false);
+  const [showRegConfirmPassword, setShowRegConfirmPassword] = useState(false);
+
+  const [forgotOpen, setForgotOpen] = useState(false);
+  const [forgotEmail, setForgotEmail] = useState("");
+
+  const isFilled = email.trim() !== "" && password.trim() !== "";
+
+  const handleLogin = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!isFilled || isValidating) return;
+
+    setIsValidating(true);
+    setError(null);
+
+    await new Promise((resolve) => setTimeout(resolve, 1500));
+
+    if (email === "error@test.com") {
+      setIsValidating(false);
+      setError("帳號或密碼錯誤，請重新輸入。");
+      setShouldShake(true);
+      setTimeout(() => setShouldShake(false), 500);
+    } else {
+      navigate("/home");
+    }
+  };
+
+  const validatePassword = (pwd: string): boolean => {
+    return /[a-zA-Z]/.test(pwd) && pwd.length >= 10;
+  };
+
+  const handleRegister = (e: React.FormEvent) => {
+    e.preventDefault();
+    const errors: Record<string, string> = {};
+    if (!regUsername.trim()) errors.username = "請輸入用戶名";
+    if (!regLastName.trim()) errors.lastName = "請輸入姓";
+    if (!regFirstName.trim()) errors.firstName = "請輸入名";
+    if (!regEmail.trim()) errors.email = "請輸入電子信箱";
+    else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(regEmail)) errors.email = "信箱格式不正確";
+    if (!validatePassword(regPassword)) errors.password = "密碼須至少10個字元且包含英文字母";
+    if (regPassword !== regConfirmPassword) errors.confirmPassword = "密碼不一致";
+    setRegErrors(errors);
+    if (Object.keys(errors).length === 0) {
+      toast({ title: "註冊成功", description: "請使用新帳號登入" });
+      setRegisterOpen(false);
+    }
+  };
+
+  const handleForgotPassword = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!forgotEmail.trim() || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(forgotEmail)) {
+      toast({ title: "錯誤", description: "請輸入有效的電子信箱", variant: "destructive" });
+      return;
+    }
+    toast({ title: "已發送", description: "密碼重設信件已發送至您的信箱" });
+    setForgotOpen(false);
+  };
+
+  return (
+    <div className="fixed inset-0 w-full h-full bg-[#FAF9F6] flex items-center justify-center p-4 overflow-y-auto">
+      {/* Background Chalk Decoration */}
+      <div className="absolute inset-0 chalk-dots opacity-[0.08] pointer-events-none" />
+      
+      <div 
+        className={`w-full max-w-[440px] bg-white border border-[#E5E2D9] p-10 flex flex-col gap-6 shadow-xl rounded-2xl transition-all duration-300 relative z-10 ${
+          shouldShake ? "animate-shake" : ""
+        }`}
+      >
+        {/* Brand area */}
+        <div className="flex flex-col items-center gap-3">
+          <div className="w-10 h-10 bg-primary flex items-center justify-center text-white font-bold rounded-lg text-xl shadow-lg shadow-primary/20">
+            S
+          </div>
+          <h1 className="font-heading text-2xl font-bold text-[#3D3831] tracking-tight">
+            SELf-corner
+          </h1>
+          <p className="text-[13px] text-[#706C61] italic text-center font-medium">
+            每個老師，都需要一個能安心犯錯的角落。
+          </p>
+        </div>
+
+        {/* Error Banner */}
+        {error && (
+          <div className="flex items-center gap-2 p-3 bg-[#B54A4A14] border-l-4 border-[#B54A4A] text-[#B54A4A] text-sm animate-in fade-in slide-in-from-top-1 rounded-r-md">
+            <AlertCircle className="w-4 h-4 shrink-0" />
+            <p className="font-bold">{error}</p>
+          </div>
+        )}
+
+        {/* Form */}
+        <form onSubmit={handleLogin} className={`flex flex-col gap-4 transition-opacity duration-300 ${isValidating ? "opacity-60" : "opacity-100"}`}>
+          {/* Email input */}
+          <div className="flex flex-col gap-1.5">
+            <label className="text-[10px] font-bold text-[#A09C94] uppercase tracking-widest pl-1">Email Address</label>
+            <div className="flex items-center gap-2.5 h-12 px-4 border border-[#E5E2D9] bg-[#FAF9F6]/50 focus-within:ring-2 focus-within:ring-primary/20 focus-within:border-primary focus-within:bg-white transition-all rounded-xl group">
+              <Mail className="w-[18px] h-[18px] text-[#A09C94] shrink-0 group-focus-within:text-primary transition-colors" />
+              <input
+                type="email"
+                placeholder="teacher@school.edu.tw"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                disabled={isValidating}
+                className="flex-1 text-sm bg-transparent outline-none placeholder:text-[#A09C94]/60 text-[#3D3831] font-medium"
+              />
+            </div>
+          </div>
+
+          {/* Password input */}
+          <div className="flex flex-col gap-1.5">
+            <label className="text-[10px] font-bold text-[#A09C94] uppercase tracking-widest pl-1">Password</label>
+            <div className="flex items-center gap-2.5 h-12 px-4 border border-[#E5E2D9] bg-[#FAF9F6]/50 focus-within:ring-2 focus-within:ring-primary/20 focus-within:border-primary focus-within:bg-white transition-all rounded-xl group">
+              <Lock className="w-[18px] h-[18px] text-[#A09C94] shrink-0 group-focus-within:text-primary transition-colors" />
+              <input
+                type={showPassword ? "text" : "password"}
+                placeholder="••••••••"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                disabled={isValidating}
+                className="flex-1 text-sm bg-transparent outline-none placeholder:text-[#A09C94]/60 text-[#3D3831] font-medium"
+              />
+              <button
+                type="button"
+                onClick={() => setShowPassword(!showPassword)}
+                disabled={isValidating}
+                className="text-[#A09C94] hover:text-[#3D3831] transition-colors shrink-0"
+              >
+                {showPassword ? <EyeOff className="w-[18px] h-[18px]" /> : <Eye className="w-[18px] h-[18px]" />}
+              </button>
+            </div>
+          </div>
+
+          {/* Forgot password */}
+          <div className="flex justify-end">
+            <button
+              type="button"
+              onClick={() => setForgotOpen(true)}
+              disabled={isValidating}
+              className="text-[12px] text-primary font-bold hover:underline transition-all"
+            >
+              忘記密碼？
+            </button>
+          </div>
+
+          {/* Login button */}
+          <button
+            type="submit"
+            className={`w-full h-12 mt-2 font-heading text-[13px] font-bold tracking-[0.1em] transition-all flex items-center justify-center gap-2 rounded-xl shadow-lg ${
+              isFilled
+                ? "bg-primary text-white hover:bg-[#C8694F] shadow-primary/20"
+                : "bg-[#D4C4B8] text-white/60 cursor-not-allowed"
+            } ${isValidating ? "cursor-wait" : ""}`}
+            disabled={!isFilled || isValidating}
+          >
+            {isValidating ? (
+              <>
+                <Loader2 className="w-4 h-4 animate-spin" />
+                正在驗證身份...
+              </>
+            ) : (
+              "登入系統 LOGIN"
+            )}
+          </button>
+
+          {/* Signup link */}
+          <div className="flex items-center justify-center gap-2 mt-4 text-[13px]">
+            <span className="text-[#706C61] font-medium">還沒有帳號嗎？</span>
+            <button
+              type="button"
+              onClick={() => setRegisterOpen(true)}
+              disabled={isValidating}
+              className="text-primary font-bold hover:underline transition-all"
+            >
+              立即註冊
+            </button>
+          </div>
+        </form>
+      </div>
+
+      {/* Registration Dialog */}
+      <Dialog open={registerOpen} onOpenChange={setRegisterOpen}>
+        <DialogContent className="sm:max-w-md border-none p-0 overflow-hidden rounded-2xl shadow-2xl">
+          <div className="bg-[#3D3831] p-6 text-white flex items-center gap-3">
+             <div className="w-10 h-10 bg-primary rounded-xl flex items-center justify-center shadow-lg">
+                <Lock className="w-5 h-5 text-white" />
+             </div>
+             <div>
+                <h2 className="font-heading text-xl font-bold">建立教師帳號</h2>
+                <p className="text-xs text-white/60 font-medium">Create your safe practice space</p>
+             </div>
+          </div>
+          <form onSubmit={handleRegister} className="p-8 space-y-4">
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-1.5">
+                <Label className="text-[10px] font-bold text-[#A09C94] uppercase tracking-wider">姓氏</Label>
+                <Input placeholder="王" value={regLastName} onChange={(e) => setRegLastName(e.target.value)} className="bg-[#FAF9F6] border-[#E5E2D9] rounded-xl" />
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-[10px] font-bold text-[#A09C94] uppercase tracking-wider">名字</Label>
+                <Input placeholder="大明" value={regFirstName} onChange={(e) => setRegFirstName(e.target.value)} className="bg-[#FAF9F6] border-[#E5E2D9] rounded-xl" />
+              </div>
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-[10px] font-bold text-[#A09C94] uppercase tracking-wider">電子信箱</Label>
+              <Input type="email" placeholder="teacher@school.edu.tw" value={regEmail} onChange={(e) => setRegEmail(e.target.value)} className="bg-[#FAF9F6] border-[#E5E2D9] rounded-xl" />
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-[10px] font-bold text-[#A09C94] uppercase tracking-wider">設定密碼</Label>
+              <div className="relative">
+                <Input
+                  type={showRegPassword ? "text" : "password"}
+                  placeholder="至少 10 個字元，含英文字母"
+                  value={regPassword}
+                  onChange={(e) => setRegPassword(e.target.value)}
+                  className="bg-[#FAF9F6] border-[#E5E2D9] rounded-xl"
+                />
+                <button type="button" className="absolute right-3 top-1/2 -translate-y-1/2 text-[#A09C94]" onClick={() => setShowRegPassword(!showRegPassword)}>
+                  {showRegPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                </button>
+              </div>
+            </div>
+            <DialogFooter className="pt-4">
+              <Button type="submit" className="w-full h-12 bg-primary text-white font-heading font-bold rounded-xl shadow-lg shadow-primary/20 hover:bg-[#C8694F]">註冊並開始練習</Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
+
+      {/* Forgot Password Dialog */}
+      <Dialog open={forgotOpen} onOpenChange={setForgotOpen}>
+        <DialogContent className="sm:max-w-md border-none p-0 overflow-hidden rounded-2xl shadow-2xl">
+          <div className="bg-[#3D3831] p-6 text-white">
+             <h2 className="font-heading text-xl font-bold">重設密碼</h2>
+          </div>
+          <form onSubmit={handleForgotPassword} className="p-8 space-y-4">
+            <p className="text-sm text-[#706C61] leading-relaxed font-medium">
+              請輸入您的電子信箱，我們將發送密碼重設連結給您。
+            </p>
+            <Input
+              type="email"
+              placeholder="您的電子信箱"
+              value={forgotEmail}
+              onChange={(e) => setForgotEmail(e.target.value)}
+              className="bg-[#FAF9F6] border-[#E5E2D9] rounded-xl h-12"
+            />
+            <DialogFooter className="pt-2">
+              <Button type="submit" className="w-full h-12 bg-[#3D3831] text-white font-heading font-bold rounded-xl">發送驗證信件</Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+}
