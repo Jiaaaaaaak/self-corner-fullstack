@@ -1,7 +1,6 @@
 import { useState, useEffect } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
-import { Textarea } from "@/components/ui/textarea";
-import { ScrollArea } from "@/components/ui/scroll-area";
+
 import { 
   Radar as RechartRadar, 
   RadarChart, 
@@ -15,9 +14,10 @@ import {
   YAxis,
   CartesianGrid
 } from "recharts";
-import { ArrowRight, Lightbulb, Sparkles, RefreshCw, Share2, MessageSquare, MessageCircle, Activity, PlusCircle } from "lucide-react";
+import { RefreshCw, Share2, Activity, PlusCircle } from "lucide-react";
 import AppLayout from "@/components/AppLayout";
 import { Badge } from "@/components/ui/badge";
+import FeedbackTabs from "@/components/feedback/FeedbackTabs";
 
 const radarData = [
   { subject: "自我覺察", value: 92 },
@@ -199,109 +199,16 @@ export default function Feedback() {
               </p>
             </div>
 
-            {/* Expert Suggestions */}
-            <div className="bg-white border border-[#E5E2D9] rounded-2xl shadow-sm p-8 flex flex-col gap-6">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 bg-primary/10 rounded-xl flex items-center justify-center">
-                   <Lightbulb className="w-5 h-5 text-primary" />
-                </div>
-                <h2 className="font-heading text-lg font-bold text-[#3D3831]">核心優化建議</h2>
-              </div>
-              <ScrollArea className="h-[260px] pr-4">
-                <div className="space-y-6">
-                  {[
-                    { id: 1, title: "建立「情緒預警系統」", text: "老師精準捕捉到了『手心冒汗』。建議進一步引導學生在情緒爆炸前 30 秒就發現生理反應。", quote: "換句話說：「除了手心冒汗，你的肩膀會緊繃嗎？下次如果感覺緊繃，我們能先深呼吸嗎？」" },
-                    { id: 2, title: "深化薩提爾的「渴望」層次", text: "學生提到『不想讓他覺得我好欺負』，這反映了對『被尊重』的渴望。", quote: "換句話說：「聽起來你很在意他是否尊重你。我們怎麼表達需求，同時也展現你的力量？」" }
-                  ].map(adv => (
-                    <div key={adv.id} className="space-y-3 p-5 bg-[#FAF9F6] border border-[#E5E2D9] rounded-xl group hover:border-primary/30 transition-colors">
-                      <h3 className="font-heading text-[15px] font-bold text-[#3D3831] flex items-center gap-2">
-                         <span className="text-primary opacity-50">0{adv.id}</span> {adv.title}
-                      </h3>
-                      <p className="text-sm text-[#706C61] font-medium leading-relaxed">{adv.text}</p>
-                      <div className="bg-white border-l-4 border-primary p-3 flex items-start gap-3 rounded-r-lg shadow-sm">
-                        <MessageSquare className="w-4 h-4 text-primary shrink-0 opacity-20" />
-                        <p className="text-[13px] font-bold text-[#3D3831] leading-relaxed italic">{adv.quote}</p>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </ScrollArea>
-            </div>
+            {/* Expert Suggestions - moved to left column bottom */}
           </div>
 
-          {/* Right: Transcript & AI Coach */}
-          <div className="flex-1 flex flex-col gap-8 min-w-0">
-            {/* Transcript Card */}
-            <div className="bg-white border border-[#E5E2D9] rounded-2xl shadow-sm flex flex-col flex-1 min-h-[500px] overflow-hidden">
-              <div className="flex items-center px-8 py-5 border-b border-[#E5E2D9] bg-[#FAF9F6]/50">
-                <div className="flex items-center gap-3">
-                   <MessageCircle className="w-5 h-5 text-primary" />
-                   <h2 className="font-heading text-lg font-bold text-[#3D3831]">對話逐字稿回顧</h2>
-                </div>
-              </div>
-              
-              <ScrollArea className="flex-1 px-8 py-8">
-                <div className="space-y-6">
-                  {defaultTranscript.map((entry, index) => (
-                    <div key={index} className={`flex flex-col ${entry.role === "teacher" ? "items-end" : "items-start"} animate-in fade-in slide-in-from-bottom-2 duration-500`} style={{ animationDelay: `${index * 50}ms` }}>
-                      <div
-                        className={`max-w-[80%] px-5 py-4 shadow-sm border ${
-                          entry.role === "teacher"
-                            ? "bg-primary text-white border-primary/10 rounded-[20px] rounded-tr-none"
-                            : "bg-white border-[#E5E2D9] text-[#3D3831] rounded-[20px] rounded-tl-none font-medium"
-                        } ${entry.highlight ? 'ring-4 ring-accent/20 border-accent/50' : ''}`}
-                      >
-                        <span className="text-[9px] font-bold uppercase tracking-[0.2em] mb-2 block opacity-60">
-                          {entry.role === "teacher" ? "Teacher Mode" : "Student Input"}
-                        </span>
-                        <p className="text-[15px] leading-relaxed">{entry.content}</p>
-                      </div>
-                      {entry.highlight && entry.note && (
-                        <div className="mt-3 max-w-[80%] bg-accent/10 text-[#B8A06A] text-[12px] px-4 py-2.5 font-bold rounded-xl border border-accent/20 flex items-start gap-3 shadow-sm">
-                          <Sparkles className="h-4 w-4 shrink-0 mt-0.5" />
-                          <p className="leading-relaxed">{entry.note}</p>
-                        </div>
-                      )}
-                    </div>
-                  ))}
-                </div>
-              </ScrollArea>
-            </div>
-
-            {/* AI Coach Card */}
-            <div className="bg-[#3D3831] rounded-2xl shadow-xl p-8 flex flex-col gap-6 relative overflow-hidden">
-              <div className="absolute top-0 right-0 w-32 h-32 bg-secondary/10 rounded-full blur-3xl -mr-16 -mt-16" />
-              <div className="flex items-center gap-3 relative z-10">
-                <div className="w-10 h-10 bg-secondary rounded-xl flex items-center justify-center shadow-lg">
-                   <Sparkles className="w-5 h-5 text-white" />
-                </div>
-                <h2 className="font-heading text-lg font-bold text-white tracking-wide">與 AI 專業督導對話</h2>
-              </div>
-              
-              <div className="flex flex-col gap-4 relative z-10">
-                {defaultChatHistory.map((msg, i) => (
-                  <div key={i} className="flex justify-start">
-                    <div className="max-w-[90%] px-5 py-4 bg-white/10 border border-white/10 text-white/90 text-sm leading-relaxed rounded-[18px] rounded-tl-none font-medium">
-                      {msg.content}
-                    </div>
-                  </div>
-                ))}
-              </div>
-
-              <div className="relative z-10 flex flex-col gap-3">
-                <Textarea
-                  placeholder="詢問督導建議：例如『如何更好地處理學生的抵觸情緒？』"
-                  value={userInput}
-                  onChange={(e) => setUserInput(e.target.value)}
-                  className="min-h-[100px] resize-none text-[15px] border-white/10 bg-white/5 text-white placeholder:text-white/30 rounded-xl focus:ring-secondary/50 focus:border-secondary transition-all"
-                />
-                <button className="h-12 w-full bg-secondary text-white font-heading font-bold text-sm tracking-widest rounded-xl hover:bg-[#6FA088] hover:shadow-lg hover:shadow-secondary/20 transition-all flex items-center justify-center gap-2">
-                  <ArrowRight className="w-4 h-4 fill-current" />
-                  發送諮詢訊息
-                </button>
-              </div>
-            </div>
-          </div>
+          {/* Right: Tabbed Expert + Transcript */}
+          <FeedbackTabs
+            transcript={defaultTranscript}
+            userInput={userInput}
+            onUserInputChange={setUserInput}
+            chatHistory={defaultChatHistory}
+          />
         </div>
       </div>
     </AppLayout>
