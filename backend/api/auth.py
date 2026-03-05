@@ -48,6 +48,15 @@ class UserResponse(BaseModel):
     email: str
     first_name: Optional[str]
     last_name: Optional[str]
+    school: Optional[str] = None
+    experience_years: Optional[str] = None
+
+
+class UpdateProfileRequest(BaseModel):
+    first_name: Optional[str] = None
+    last_name: Optional[str] = None
+    school: Optional[str] = None
+    experience_years: Optional[str] = None
 
 
 # =============================================================================
@@ -102,6 +111,8 @@ async def register(body: RegisterRequest, db: AsyncSession = Depends(get_db)):
         email=user.email,
         first_name=user.first_name,
         last_name=user.last_name,
+        school=user.school,
+        experience_years=user.experience_years,
     )
 
 
@@ -195,4 +206,41 @@ async def get_me(
         email=user.email,
         first_name=user.first_name,
         last_name=user.last_name,
+        school=user.school,
+        experience_years=user.experience_years,
+    )
+
+
+@router.put("/me", response_model=UserResponse)
+async def update_me(
+    body: UpdateProfileRequest,
+    access_token: Optional[str] = Cookie(default=None, alias=ACCESS_COOKIE),
+    db: AsyncSession = Depends(get_db),
+):
+    if not access_token:
+        raise HTTPException(status_code=401, detail="未登入")
+
+    payload = decode_access_token(access_token)
+    if not payload:
+        raise HTTPException(status_code=401, detail="Token 無效或已過期")
+
+    db_manager = DBManager(db)
+    user = await db_manager.update_user_profile(
+        user_id=int(payload["sub"]),
+        first_name=body.first_name,
+        last_name=body.last_name,
+        school=body.school,
+        experience_years=body.experience_years,
+    )
+    if not user:
+        raise HTTPException(status_code=404, detail="用戶不存在")
+
+    return UserResponse(
+        id=user.id,
+        username=user.username,
+        email=user.email,
+        first_name=user.first_name,
+        last_name=user.last_name,
+        school=user.school,
+        experience_years=user.experience_years,
     )

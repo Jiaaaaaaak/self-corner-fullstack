@@ -247,6 +247,31 @@ VITE_LIVEKIT_URL=wss://your-project.livekit.cloud
 - `{scenario_info}`：情境名稱、類別、描述
 - `{emotion_summary}`：每輪前三名情緒（格式：`第 N 輪：悲傷(70%)、焦慮(50%)、挫折(45%)`）
 
+### UI 重構 + Bug 修正（v1.3.0）
+
+**新端點：`GET /session/count`**
+- 回傳 `{"count": int}`，統計該使用者的全部 Session 次數（含進行中）
+- Info 頁面「Total Sessions」使用此端點，不再從 `/history` 陣列長度推算
+
+**`SessionResponse` 新增欄位：`student_name: Optional[str]`**
+- `POST /session/create` 回傳 `student_name=personality.name if personality else None`
+- Chatroom.tsx 讀取後存入 state，並傳給 `ChatPanel` 的 `studentName` prop，讓對話框顯示正確學生名
+
+**UTC 時區修正**（全端點統一附加 `+00:00`）
+- `backend/api/session.py`：`started_at`
+- `backend/api/history.py`：`started_at`、`ended_at`（list 與 single 端點）
+- `backend/api/report.py`：`transcript[].timestamp`、`generated_at`
+- 修正前：`datetime.utcnow().isoformat()` 產生無時區字串，瀏覽器當本地時間解析，差 8 小時
+
+**前端 UI 改動**
+- `Sidebar.tsx`：移除「專家回饋」主選單項、移除「即時分析」session 選單項；結束按鈕改為 `ClipboardCheck` icon + 文字
+- `ChatPanel.tsx`：麥克風未錄音狀態改用 `MicOff` 深色圖示；錄音中改用 `Mic` + ping/pulse 動畫；結束按鈕改為 pill 形帶文字
+- `Chatroom.tsx`：對話進行時 header 顯示完整情境描述（`title——「description」`）；結束前顯示「分析對話中...」全覆蓋 overlay
+- `FeedbackTabs.tsx`（新元件）：右側 panel 改為 Tabs，Tab 1「專家建議」含 feedback/analysis 文字 + AI 督導聊天框，Tab 2「對話逐字稿」
+  - 逐字稿使用 `div max-h overflow-y-auto`，**不使用 ScrollArea**（Radix ScrollArea Viewport 用 `h-full`，`max-height` 無法觸發可捲動區域）
+- `Feedback.tsx`：左欄保留雷達圖 + 情緒折線圖；右欄改為 `<FeedbackTabs>`，移除原本的獨立 expert card
+- `Info.tsx`：移除登出卡片（登出統一由 Sidebar 處理）；安全設定卡片改為可點擊樣式
+
 ---
 
 ## 範疇限制

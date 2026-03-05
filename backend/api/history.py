@@ -68,8 +68,8 @@ async def get_history(
         result.append(HistoryItem(
             session_uuid=s.session_uuid,
             title=s.title or "未命名練習",
-            started_at=s.started_at.isoformat() if s.started_at else "",
-            ended_at=s.ended_at.isoformat() if s.ended_at else None,
+            started_at=(s.started_at.isoformat() + "+00:00") if s.started_at else "",
+            ended_at=(s.ended_at.isoformat() + "+00:00") if s.ended_at else None,
             scenario_title=scenario_title,
             rounds=rounds,
             duration=duration,
@@ -104,8 +104,8 @@ async def get_history_item(
     return HistoryItem(
         session_uuid=session.session_uuid,
         title=session.title or "未命名練習",
-        started_at=session.started_at.isoformat() if session.started_at else "",
-        ended_at=session.ended_at.isoformat() if session.ended_at else None,
+        started_at=(session.started_at.isoformat() + "+00:00") if session.started_at else "",
+        ended_at=(session.ended_at.isoformat() + "+00:00") if session.ended_at else None,
         scenario_title=scenario_title,
         rounds=rounds,
         duration=duration,

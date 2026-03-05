@@ -1,7 +1,5 @@
 import { useState, useEffect } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
-import { Textarea } from "@/components/ui/textarea";
-import { ScrollArea } from "@/components/ui/scroll-area";
 import {
   Radar as RechartRadar,
   RadarChart,
@@ -16,7 +14,8 @@ import {
   CartesianGrid,
   Legend,
 } from "recharts";
-import { ArrowRight, Lightbulb, Sparkles, RefreshCw, Share2, MessageSquare, MessageCircle, Activity, PlusCircle, Loader2 } from "lucide-react";
+import { RefreshCw, Share2, Activity, PlusCircle, Loader2 } from "lucide-react";
+import FeedbackTabs from "@/components/feedback/FeedbackTabs";
 import AppLayout from "@/components/AppLayout";
 import { Badge } from "@/components/ui/badge";
 import api from "@/lib/api";
@@ -315,131 +314,20 @@ export default function Feedback() {
               )}
             </div>
 
-            {/* Expert Suggestions */}
-            <div className="bg-white border border-[#E5E2D9] rounded-2xl shadow-sm p-8 flex flex-col gap-6">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 bg-primary/10 rounded-xl flex items-center justify-center">
-                   <Lightbulb className="w-5 h-5 text-primary" />
-                </div>
-                <h2 className="font-heading text-lg font-bold text-[#3D3831]">核心優化建議</h2>
-              </div>
-              <ScrollArea className="h-[260px] pr-4">
-                <div className="space-y-4">
-                  <div className="p-5 bg-[#FAF9F6] border border-[#E5E2D9] rounded-xl">
-                    <p className="text-sm text-[#706C61] font-medium leading-relaxed whitespace-pre-line">
-                      {report?.feedback_text ?? ""}
-                    </p>
-                  </div>
-                  {report?.analysis_text && (
-                    <div className="bg-white border-l-4 border-primary p-4 rounded-r-xl shadow-sm">
-                      <MessageSquare className="w-4 h-4 text-primary mb-2 opacity-50" />
-                      <p className="text-[13px] font-bold text-[#3D3831] leading-relaxed italic">
-                        {report.analysis_text}
-                      </p>
-                    </div>
-                  )}
-                </div>
-              </ScrollArea>
-            </div>
           </div>
 
-          {/* Right: Transcript & AI Coach */}
-          <div className="flex-1 flex flex-col gap-8 min-w-0">
-            {/* Transcript Card */}
-            <div className="bg-white border border-[#E5E2D9] rounded-2xl shadow-sm flex flex-col flex-1 min-h-[500px] overflow-hidden">
-              <div className="flex items-center px-8 py-5 border-b border-[#E5E2D9] bg-[#FAF9F6]/50">
-                <div className="flex items-center gap-3">
-                   <MessageCircle className="w-5 h-5 text-primary" />
-                   <h2 className="font-heading text-lg font-bold text-[#3D3831]">對話逐字稿回顧</h2>
-                </div>
-              </div>
-
-              <ScrollArea className="flex-1 px-8 py-8">
-                <div className="space-y-6">
-                  {(report?.transcript ?? []).map((entry, index) => (
-                    <div
-                      key={index}
-                      className={`flex flex-col ${entry.speaker === "teacher" ? "items-end" : "items-start"} animate-in fade-in slide-in-from-bottom-2 duration-500`}
-                      style={{ animationDelay: `${index * 50}ms` }}
-                    >
-                      <div
-                        className={`max-w-[80%] px-5 py-4 shadow-sm border ${
-                          entry.speaker === "teacher"
-                            ? "bg-primary text-white border-primary/10 rounded-[20px] rounded-tr-none"
-                            : "bg-white border-[#E5E2D9] text-[#3D3831] rounded-[20px] rounded-tl-none font-medium"
-                        }`}
-                      >
-                        <span className="text-[9px] font-bold uppercase tracking-[0.2em] mb-2 block opacity-60">
-                          {entry.speaker === "teacher" ? "Teacher" : "Student"}
-                        </span>
-                        <p className="text-[15px] leading-relaxed">{entry.text}</p>
-                      </div>
-                    </div>
-                  ))}
-                  {(report?.transcript ?? []).length === 0 && (
-                    <div className="py-16 text-center text-[#A09C94] font-medium">
-                      暫無對話紀錄
-                    </div>
-                  )}
-                </div>
-              </ScrollArea>
-            </div>
-
-            {/* AI Coach Card */}
-            <div className="bg-[#3D3831] rounded-2xl shadow-xl p-8 flex flex-col gap-6 relative overflow-hidden">
-              <div className="absolute top-0 right-0 w-32 h-32 bg-secondary/10 rounded-full blur-3xl -mr-16 -mt-16" />
-              <div className="flex items-center gap-3 relative z-10">
-                <div className="w-10 h-10 bg-secondary rounded-xl flex items-center justify-center shadow-lg">
-                   <Sparkles className="w-5 h-5 text-white" />
-                </div>
-                <h2 className="font-heading text-lg font-bold text-white tracking-wide">與 AI 專業督導對話</h2>
-              </div>
-
-              <ScrollArea className="max-h-[240px] relative z-10">
-                <div className="flex flex-col gap-4">
-                  {chatHistory.map((msg, i) => (
-                    <div key={i} className={`flex ${msg.role === "user" ? "justify-end" : "justify-start"}`}>
-                      <div className={`max-w-[90%] px-5 py-4 text-sm leading-relaxed rounded-[18px] font-medium ${
-                        msg.role === "user"
-                          ? "bg-primary/80 text-white rounded-tr-none"
-                          : "bg-white/10 border border-white/10 text-white/90 rounded-tl-none"
-                      }`}>
-                        {msg.content}
-                      </div>
-                    </div>
-                  ))}
-                  {isSending && (
-                    <div className="flex justify-start">
-                      <div className="bg-white/10 border border-white/10 px-5 py-3 rounded-[18px] rounded-tl-none">
-                        <div className="flex gap-1.5">
-                          <div className="w-2 h-2 bg-white/50 rounded-full animate-bounce [animation-delay:-0.3s]" />
-                          <div className="w-2 h-2 bg-white/50 rounded-full animate-bounce [animation-delay:-0.15s]" />
-                          <div className="w-2 h-2 bg-white/50 rounded-full animate-bounce" />
-                        </div>
-                      </div>
-                    </div>
-                  )}
-                </div>
-              </ScrollArea>
-
-              <div className="relative z-10 flex flex-col gap-3">
-                <Textarea
-                  placeholder="詢問督導建議：例如『如何更好地處理學生的抵觸情緒？』"
-                  value={userInput}
-                  onChange={(e) => setUserInput(e.target.value)}
-                  onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); handleSendCoach(); } }}
-                  className="min-h-[100px] resize-none text-[15px] border-white/10 bg-white/5 text-white placeholder:text-white/30 rounded-xl focus:ring-secondary/50 focus:border-secondary transition-all"
-                />
-                <button
-                  onClick={handleSendCoach}
-                  disabled={isSending || !userInput.trim()}
-                  className="h-12 w-full bg-secondary text-white font-heading font-bold text-sm tracking-widest rounded-xl hover:bg-[#6FA088] hover:shadow-lg hover:shadow-secondary/20 transition-all flex items-center justify-center gap-2 disabled:opacity-50"
-                >
-                  {isSending ? <Loader2 className="w-4 h-4 animate-spin" /> : <ArrowRight className="w-4 h-4" />}
-                  發送諮詢訊息
-                </button>
-              </div>
-            </div>
+          {/* Right: Tabs (Expert Suggestions + Transcript) */}
+          <div className="flex-1 flex flex-col min-w-0">
+            <FeedbackTabs
+              feedbackText={report?.feedback_text ?? ""}
+              analysisText={report?.analysis_text ?? ""}
+              transcript={report?.transcript ?? []}
+              userInput={userInput}
+              onUserInputChange={setUserInput}
+              chatHistory={chatHistory}
+              onSendCoach={handleSendCoach}
+              isSending={isSending}
+            />
           </div>
         </div>
       </div>

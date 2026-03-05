@@ -1,25 +1,31 @@
-import { useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useState, useEffect } from "react";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { toast } from "@/hooks/use-toast";
 import AppLayout from "@/components/AppLayout";
-import { Activity, Pencil, Save, X, User as UserIcon, Calendar, Trophy, School, ChevronRight } from "lucide-react";
+import { Activity, Pencil, Save, X, User as UserIcon, Calendar, Trophy, ChevronRight, School, Clock } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
 import { useAuthStore } from "@/lib/auth";
 import api from "@/lib/api";
 
 export default function Info() {
-  const navigate = useNavigate();
-  const { user: storeUser, setUser, clearUser } = useAuthStore();
+  const { user: storeUser, setUser } = useAuthStore();
 
   const [isEditing, setIsEditing] = useState(false);
   const [editForm, setEditForm] = useState({
     first_name: storeUser?.first_name ?? "",
     last_name: storeUser?.last_name ?? "",
+    school: storeUser?.school ?? "",
+    experience_years: storeUser?.experience_years ?? "",
   });
+  const [totalSessions, setTotalSessions] = useState<number | null>(null);
+
+  useEffect(() => {
+    api.get("/session/count")
+      .then((res) => setTotalSessions(typeof res.data.count === "number" ? res.data.count : 0))
+      .catch(() => setTotalSessions(0));
+  }, []);
 
   const displayName = storeUser
     ? `${storeUser.last_name ?? ""}${storeUser.first_name ?? storeUser.username}`
@@ -27,30 +33,30 @@ export default function Info() {
   const initial = displayName.charAt(0).toUpperCase();
 
   const handleSave = async () => {
-    // Local update only — no profile update endpoint exists yet
-    if (storeUser) {
-      setUser({ ...storeUser, first_name: editForm.first_name, last_name: editForm.last_name });
+    if (!storeUser) return;
+    try {
+      const res = await api.put("/auth/me", {
+        first_name: editForm.first_name || null,
+        last_name: editForm.last_name || null,
+        school: editForm.school || null,
+        experience_years: editForm.experience_years || null,
+      });
+      setUser({ ...storeUser, ...res.data });
+      setIsEditing(false);
+      toast({ title: "儲存成功", description: "您的個人資料已更新" });
+    } catch {
+      toast({ title: "儲存失敗", description: "請稍後再試", variant: "destructive" });
     }
-    setIsEditing(false);
-    toast({ title: "儲存成功", description: "您的個人資料已更新" });
   };
 
   const handleCancel = () => {
     setEditForm({
       first_name: storeUser?.first_name ?? "",
       last_name: storeUser?.last_name ?? "",
+      school: storeUser?.school ?? "",
+      experience_years: storeUser?.experience_years ?? "",
     });
     setIsEditing(false);
-  };
-
-  const handleLogout = async () => {
-    try {
-      await api.post("/auth/logout");
-    } catch {
-      // ignore
-    }
-    clearUser();
-    navigate("/login");
   };
 
   return (
@@ -78,12 +84,14 @@ export default function Info() {
               </div>
               <div className="relative z-10">
                 <p className="text-xs text-white/50 font-bold uppercase tracking-widest mb-1">Total Sessions</p>
-                <p className="font-heading text-6xl font-bold text-white tracking-tighter">–</p>
+                <p className="font-heading text-6xl font-bold text-white tracking-tighter">
+                  {totalSessions === null ? "–" : totalSessions}
+                </p>
               </div>
               <div className="w-full h-px bg-white/10 my-2 relative z-10" />
               <div className="flex flex-col gap-1 relative z-10">
                 <p className="text-xs text-secondary font-bold uppercase tracking-wider">Skill Level: Expert</p>
-                <p className="text-[11px] text-white/40 font-medium">持續練習中</p>
+                <p className="text-[11px] text-white/40 font-medium">超過 85% 使用者</p>
               </div>
             </div>
 
@@ -186,26 +194,58 @@ export default function Info() {
                     <Label className="font-heading text-[10px] font-bold text-[#A09C94] uppercase tracking-[0.15em]">電子郵件</Label>
                     <div className="h-10 flex items-center px-4 bg-[#FAF9F6] rounded-lg border border-transparent font-bold text-[#3D3831]">{storeUser?.email || "–"}</div>
                   </div>
+
+                  {/* Field School */}
+                  <div className="flex flex-col gap-2">
+                    <Label className="font-heading text-[10px] font-bold text-[#A09C94] uppercase tracking-[0.15em] flex items-center gap-1">
+                      <School className="w-3 h-3" />服務單位
+                    </Label>
+                    {isEditing ? (
+                      <Input
+                        value={editForm.school}
+                        onChange={e => setEditForm({...editForm, school: e.target.value})}
+                        placeholder="例：台北市立明德國中"
+                        className="bg-[#FAF9F6] border-[#E5E2D9] rounded-xl font-medium"
+                      />
+                    ) : (
+                      <div className="h-10 flex items-center px-4 bg-[#FAF9F6] rounded-lg border border-transparent font-bold text-[#3D3831]">{storeUser?.school || "–"}</div>
+                    )}
+                  </div>
+
+                  {/* Field Experience Years */}
+                  <div className="flex flex-col gap-2">
+                    <Label className="font-heading text-[10px] font-bold text-[#A09C94] uppercase tracking-[0.15em] flex items-center gap-1">
+                      <Clock className="w-3 h-3" />教學年資
+                    </Label>
+                    {isEditing ? (
+                      <Input
+                        value={editForm.experience_years}
+                        onChange={e => setEditForm({...editForm, experience_years: e.target.value})}
+                        placeholder="例：5 年"
+                        className="bg-[#FAF9F6] border-[#E5E2D9] rounded-xl font-medium"
+                      />
+                    ) : (
+                      <div className="h-10 flex items-center px-4 bg-[#FAF9F6] rounded-lg border border-transparent font-bold text-[#3D3831]">{storeUser?.experience_years || "–"}</div>
+                    )}
+                  </div>
                 </div>
               </div>
             </div>
 
-            {/* Logout Section */}
-            <div
-              className="bg-white border border-[#E5E2D9] rounded-2xl p-8 shadow-sm flex items-center justify-between group cursor-pointer hover:border-primary/30 transition-all"
-              onClick={handleLogout}
-            >
+            {/* Security Card */}
+            <div className="bg-white border border-[#E5E2D9] rounded-2xl p-8 shadow-sm flex items-center justify-between group cursor-pointer hover:border-primary/30 transition-all">
                <div className="flex items-center gap-4">
                   <div className="w-12 h-12 bg-[#FAF9F6] rounded-xl flex items-center justify-center">
                      <Trophy className="w-6 h-6 text-[#A09C94]" />
                   </div>
                   <div>
-                     <h3 className="font-heading text-[15px] font-bold text-[#3D3831]">登出帳號</h3>
-                     <p className="text-xs text-[#706C61] font-medium">安全地登出 SELf-corner</p>
+                     <h3 className="font-heading text-[15px] font-bold text-[#3D3831]">帳號安全設定</h3>
+                     <p className="text-xs text-[#706C61] font-medium">修改密碼與驗證您的身分資訊</p>
                   </div>
                </div>
                <ChevronRight className="w-5 h-5 text-[#A09C94] group-hover:text-primary transition-all" />
             </div>
+
           </div>
         </div>
       </div>

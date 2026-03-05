@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from "react";
-import { Mic, Send, Pause, Play, SquareSquare, Disc2, Loader2 } from "lucide-react";
+import { Mic, MicOff, Send, Pause, Play, ClipboardCheck, Loader2 } from "lucide-react";
 import { Room, RoomEvent, Track, DataPacket_Kind } from "livekit-client";
 
 interface ChatMessage {
@@ -13,11 +13,12 @@ interface ChatPanelProps {
   onEnd: () => void;
   onEmotionChange?: (emotion: string) => void;
   livekitToken: string | null;
+  studentName?: string;
 }
 
 const LIVEKIT_URL = import.meta.env.VITE_LIVEKIT_URL ?? "ws://localhost:7880";
 
-export default function ChatPanel({ isPaused, onTogglePause, onEnd, onEmotionChange, livekitToken }: ChatPanelProps) {
+export default function ChatPanel({ isPaused, onTogglePause, onEnd, onEmotionChange, livekitToken, studentName = "學生" }: ChatPanelProps) {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [inputText, setInputText] = useState("");
   const [isRecording, setIsRecording] = useState(false);
@@ -168,7 +169,7 @@ export default function ChatPanel({ isPaused, onTogglePause, onEnd, onEmotionCha
             >
               {msg.role === "student" && (
                 <div className="w-8 h-8 rounded-full bg-white/80 backdrop-blur-sm border border-[#E5E2D9]/50 flex items-center justify-center shrink-0 mr-2.5 self-end shadow-sm">
-                  <span className="text-[10px] font-bold text-[#706C61]">小</span>
+                  <span className="text-[10px] font-bold text-[#706C61]">{studentName.charAt(0)}</span>
                 </div>
               )}
               <div
@@ -221,13 +222,21 @@ export default function ChatPanel({ isPaused, onTogglePause, onEnd, onEmotionCha
             <button
               onClick={toggleRecording}
               disabled={isPaused}
-              className={`w-12 h-12 rounded-full flex items-center justify-center shrink-0 shadow-lg transition-all active:scale-95 ${
+              className={`relative w-12 h-12 rounded-full flex items-center justify-center shrink-0 shadow-lg transition-all active:scale-95 disabled:opacity-50 ${
                 isRecording
-                  ? "bg-destructive text-white ring-4 ring-destructive/20 animate-pulse"
-                  : "bg-primary text-white hover:bg-primary/90 hover:scale-105"
-              } disabled:opacity-50`}
+                  ? "bg-destructive text-white"
+                  : "bg-[#3D3831]/60 backdrop-blur-sm text-white hover:bg-[#3D3831]/80 hover:scale-105"
+              }`}
             >
-              {isRecording ? <Disc2 className="w-5 h-5" /> : <Mic className="w-5 h-5" />}
+              {isRecording ? (
+                <>
+                  <span className="absolute inset-0 rounded-full bg-destructive animate-ping opacity-30" />
+                  <span className="absolute w-16 h-16 rounded-full border-2 border-destructive animate-pulse opacity-20" />
+                  <Mic className="w-5 h-5 relative z-10" />
+                </>
+              ) : (
+                <MicOff className="w-5 h-5" />
+              )}
             </button>
 
             {/* Send button */}
@@ -251,10 +260,10 @@ export default function ChatPanel({ isPaused, onTogglePause, onEnd, onEmotionCha
             {/* End button */}
             <button
               onClick={onEnd}
-              className="w-12 h-12 rounded-full flex items-center justify-center bg-white/80 backdrop-blur-sm border border-white/50 text-[#706C61] hover:text-destructive transition-all shadow-lg hover:scale-105 active:scale-95"
-              title="結束對話"
+              className="h-12 px-5 rounded-full flex items-center gap-2 bg-white/80 backdrop-blur-sm border border-white/50 text-[#706C61] hover:text-destructive transition-all shadow-lg hover:scale-105 active:scale-95 shrink-0"
             >
-              <SquareSquare className="w-5 h-5" />
+              <ClipboardCheck className="w-5 h-5" />
+              <span className="text-[13px] font-heading font-semibold">結束並分析</span>
             </button>
           </div>
         </div>

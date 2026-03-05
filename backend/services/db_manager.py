@@ -55,6 +55,29 @@ class DBManager:
         await self.db.refresh(user)
         return user
 
+    async def update_user_profile(
+        self,
+        user_id: int,
+        first_name: Optional[str] = None,
+        last_name: Optional[str] = None,
+        school: Optional[str] = None,
+        experience_years: Optional[str] = None,
+    ) -> Optional[User]:
+        user = await self.get_user_by_id(user_id)
+        if not user:
+            return None
+        if first_name is not None:
+            user.first_name = first_name
+        if last_name is not None:
+            user.last_name = last_name
+        if school is not None:
+            user.school = school
+        if experience_years is not None:
+            user.experience_years = experience_years
+        await self.db.flush()
+        await self.db.refresh(user)
+        return user
+
     async def get_user_session_count(self, user_id: int) -> int:
         result = await self.db.execute(
             select(func.count()).where(Session.user_id == user_id)

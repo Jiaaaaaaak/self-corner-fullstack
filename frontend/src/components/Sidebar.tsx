@@ -2,13 +2,12 @@ import { useNavigate, useLocation } from "react-router-dom";
 import {
   House,
   MessageCircle,
-  Radar,
   Clock3,
   User,
   LogOut,
   ChevronRight,
   Pause,
-  LogOutIcon,
+  ClipboardCheck,
 } from "lucide-react";
 import { useAuthStore } from "@/lib/auth";
 import api from "@/lib/api";
@@ -16,7 +15,6 @@ import api from "@/lib/api";
 const navItems = [
   { label: "首頁 Home", icon: House, path: "/home" },
   { label: "對話練習", icon: MessageCircle, path: "/chatroom" },
-  { label: "專家回饋", icon: Radar, path: "/feedback" },
   { label: "歷史紀錄", icon: Clock3, path: "/history" },
   { label: "個人帳號", icon: User, path: "/info" },
 ];
@@ -24,7 +22,6 @@ const navItems = [
 // Session nav items shown during active practice
 const sessionNavItems = [
   { label: "對話", icon: MessageCircle, id: "chat" },
-  { label: "即時分析", icon: Radar, id: "analysis" },
 ];
 
 interface SidebarProps {
@@ -173,8 +170,8 @@ export default function Sidebar({ onNavigate, sessionInfo }: SidebarProps) {
             onClick={sessionInfo.onEnd}
             className="flex items-center gap-3 w-full px-4 py-3 text-[13px] font-heading font-semibold text-primary hover:text-primary hover:bg-primary/10 transition-all rounded-sm group"
           >
-            <LogOutIcon className="w-5 h-5 shrink-0 text-primary transition-colors" />
-            <span>結束對話</span>
+            <ClipboardCheck className="w-5 h-5 shrink-0 text-primary transition-colors" />
+            <span>結束對話並分析</span>
           </button>
         </div>
       ) : (

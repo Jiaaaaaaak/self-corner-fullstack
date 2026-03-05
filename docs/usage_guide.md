@@ -29,10 +29,12 @@
 
 ## 2. 安裝與初始化
 
-### 2.1 建立後端虛擬環境
+### 2.1 建立虛擬環境（在專案根目錄）
+
+> ⚠️ **venv 建在專案根目錄**，不要建在 `backend/` 內部。後續所有 Python 指令（含 FastAPI、Agent Worker、seed_data.py）都從根目錄的 venv 取用。
 
 ```bash
-cd backend
+# 在 ai-classroom/ 根目錄執行
 python -m venv venv
 ```
 
@@ -46,12 +48,13 @@ source venv/bin/activate
 venv\Scripts\activate
 ```
 
-> 啟動後終端機提示符會出現 `(venv)` 前綴，後續所有 Python 指令皆在此環境中執行。
+> 啟動後終端機提示符會出現 `(venv)` 前綴。**每個需要執行 Python 的終端機視窗都必須先啟動 venv。**
 
 ### 2.2 複製後端環境變數範本
 
 ```bash
-# 仍在 backend/ 目錄下
+# 切到 backend/ 目錄（venv 保持啟動）
+cd backend
 cp .env.example .env
 ```
 
@@ -75,14 +78,14 @@ CREATE DATABASE self_corner;
 ### 2.4 安裝後端依賴
 
 ```bash
-# 確認虛擬環境已啟動（(venv) 前綴）
+# 確認：(1) 虛擬環境已啟動（(venv) 前綴），(2) 目前在 backend/ 目錄
 pip install -r requirements.txt
 ```
 
 ### 2.5 初始化資料庫並匯入初始資料
 
 ```bash
-# 建立所有資料表 + 預填 10 個情境與 5 種學生個性
+# 確認 venv 已啟動，且在 backend/ 目錄下
 python seed_data.py
 ```
 
@@ -121,11 +124,14 @@ VITE_LIVEKIT_URL=wss://your-project.livekit.cloud
 
 需要同時開啟 **3 個終端機視窗**：
 
+> ⚠️ **Terminal 1 與 Terminal 2 都必須啟動 venv**，每個視窗各自獨立執行一次啟動指令。Terminal 3（前端）使用 npm，**不需要** venv。
+
 ### Terminal 1 — FastAPI 後端
 
 ```bash
-cd backend
+# 從專案根目錄（ai-classroom/）
 source venv/bin/activate  # Windows: venv\Scripts\activate
+cd backend
 python main.py
 ```
 
@@ -136,8 +142,9 @@ python main.py
 ### Terminal 2 — LiveKit Agent Worker
 
 ```bash
-cd backend
+# 從專案根目錄（ai-classroom/）
 source venv/bin/activate  # Windows: venv\Scripts\activate
+cd backend
 python -m agents.voice_pipeline dev
 ```
 
@@ -146,6 +153,7 @@ python -m agents.voice_pipeline dev
 ### Terminal 3 — 前端開發伺服器
 
 ```bash
+# 不需要 venv，直接執行
 cd frontend
 npm run dev
 ```
@@ -287,10 +295,10 @@ npm run dev
 
 ### Q：如何新增自訂情境或學生個性？
 
-**A**：直接編輯 `backend/seed_data.py` 中的 `SCENARIOS` 或 `STUDENT_PERSONALITIES` 列表，然後重新執行：
+**A**：直接編輯 `backend/seed_data.py` 中的 `SCENARIOS` 或 `STUDENT_PERSONALITIES` 列表，然後重新執行（記得啟動 venv）：
 ```bash
+source venv/bin/activate  # Windows: venv\Scripts\activate（在 ai-classroom/ 根目錄）
 cd backend
-source venv/bin/activate  # Windows: venv\Scripts\activate
 python seed_data.py
 ```
 或直接透過 PostgreSQL 工具（如 pgAdmin）手動插入。
@@ -315,4 +323,4 @@ pip install "bcrypt==4.0.1"  # 若不符合則重新安裝
 
 ---
 
-*SELf-Corner v2.0 | 2026-03-03*
+*SELf-Corner v2.0 | 2026-03-05*

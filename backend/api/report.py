@@ -122,7 +122,7 @@ async def get_feedback(
             TranscriptEntry(
                 speaker=t.speaker,
                 text=t.text,
-                timestamp=t.timestamp.isoformat() if t.timestamp else "",
+                timestamp=(t.timestamp.isoformat() + "+00:00") if t.timestamp else "",
             )
             for t in transcripts
         ],
@@ -141,7 +141,7 @@ async def get_feedback(
             )
             for e in emotion_logs
         ],
-        generated_at=report.generated_at.isoformat() if report.generated_at else None,
+        generated_at=(report.generated_at.isoformat() + "+00:00") if report.generated_at else None,
     )
 
 

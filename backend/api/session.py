@@ -56,6 +56,7 @@ class SessionResponse(BaseModel):
     livekit_room_name: str
     scenario_id: Optional[int]
     personality_id: Optional[int]
+    student_name: Optional[str]
     is_active: bool
     started_at: str
 
@@ -99,8 +100,9 @@ async def create_session(
         livekit_room_name=session_data["livekit_room_name"],
         scenario_id=session_data["scenario_id"],
         personality_id=session_data["personality_id"],
+        student_name=personality.name if personality else None,
         is_active=session_data["is_active"],
-        started_at=session_data["started_at"].isoformat(),
+        started_at=session_data["started_at"].isoformat() + "+00:00",
     )
 
 
@@ -164,3 +166,14 @@ async def end_session(
     )
 
     return {"status": "ended", "report_ready": True}
+
+
+@router.get("/count")
+async def get_session_count(
+    db: AsyncSession = Depends(get_db),
+    user_id: int = Depends(get_current_user_id),
+):
+    """取得當前使用者的對話練習總次數（含所有 session）"""
+    db_manager = DBManager(db)
+    count = await db_manager.get_user_session_count(user_id)
+    return {"count": count}

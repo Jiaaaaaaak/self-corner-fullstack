@@ -328,8 +328,15 @@ async def migrate_db():
         await db.execute(text(
             "ALTER TABLE scenarios ADD COLUMN IF NOT EXISTS initial_emotions JSONB"
         ))
+        await db.execute(text(
+            "ALTER TABLE users ADD COLUMN IF NOT EXISTS school VARCHAR(200)"
+        ))
+        await db.execute(text(
+            "ALTER TABLE users ADD COLUMN IF NOT EXISTS experience_years VARCHAR(50)"
+        ))
         await db.commit()
     print("[Migrate] scenarios 表欄位更新完成（student_prompt, initial_emotions）。")
+    print("[Migrate] users 表欄位更新完成（school, experience_years）。")
 
 
 async def seed():

@@ -79,6 +79,8 @@ class User(Base):
     hashed_password: Mapped[str] = mapped_column(String(255), nullable=False)
     first_name: Mapped[Optional[str]] = mapped_column(String(50), nullable=True)
     last_name: Mapped[Optional[str]] = mapped_column(String(50), nullable=True)
+    school: Mapped[Optional[str]] = mapped_column(String(200), nullable=True)
+    experience_years: Mapped[Optional[str]] = mapped_column(String(50), nullable=True)
     role: Mapped[UserRole] = mapped_column(SQLEnum(UserRole), default=UserRole.TEACHER)
 
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)

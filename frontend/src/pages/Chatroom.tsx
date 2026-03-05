@@ -9,6 +9,7 @@ import {
   Play,
   RotateCcw,
   Mic,
+  Loader2,
 } from "lucide-react";
 import {
   Dialog,
@@ -56,8 +57,10 @@ export default function Chatroom() {
   const [allScenarios, setAllScenarios] = useState<Scenario[]>(fallbackScenarios);
   const [isStarted, setIsStarted] = useState(false);
   const [isPaused, setIsPaused] = useState(false);
+  const [isEnding, setIsEnding] = useState(false);
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
   const [studentEmotion, setStudentEmotion] = useState<"neutral" | "angry" | "sad" | "thinking">("neutral");
+  const [studentName, setStudentName] = useState("小明");
   const [selectedScenarioId, setSelectedScenarioId] = useState<number | null>(null);
   const [activeScenario, setActiveScenario] = useState<Scenario | null>(null);
   const [activeTag, setActiveTag] = useState("全部");
@@ -80,10 +83,9 @@ export default function Chatroom() {
       }));
       if (data.length > 0) {
         setAllScenarios(data);
-        setDisplayedScenarios(pickRandom(data, Math.min(DISPLAY_COUNT, data.length)));
       }
     }).catch(() => {
-      setDisplayedScenarios(pickRandom(fallbackScenarios, DISPLAY_COUNT));
+      // allScenarios remains as fallbackScenarios; activeTag effect will set displayedScenarios
     });
   }, []);
 
@@ -118,9 +120,27 @@ export default function Chatroom() {
     return `${mins.toString().padStart(2, "0")}:${secs.toString().padStart(2, "0")}`;
   };
 
+  // Filter displayed scenarios by activeTag
+  useEffect(() => {
+    if (allScenarios.length === 0) return;
+    if (activeTag === "全部") {
+      setDisplayedScenarios(pickRandom(allScenarios, Math.min(DISPLAY_COUNT, allScenarios.length)));
+    } else {
+      const filtered = allScenarios.filter((s) => s.tag === activeTag);
+      setDisplayedScenarios(filtered.slice(0, DISPLAY_COUNT));
+    }
+  }, [activeTag, allScenarios]);
+
   const handleCardClick = (id: number) => setSelectedScenarioId(id);
   const handleRandomClick = () => setShowRandomConfirm(true);
-  const handleRefresh = () => setDisplayedScenarios(pickRandom(allScenarios, Math.min(DISPLAY_COUNT, allScenarios.length)));
+  const handleRefresh = () => {
+    if (activeTag === "全部") {
+      setDisplayedScenarios(pickRandom(allScenarios, Math.min(DISPLAY_COUNT, allScenarios.length)));
+    } else {
+      const filtered = allScenarios.filter((s) => s.tag === activeTag);
+      setDisplayedScenarios(filtered.slice(0, DISPLAY_COUNT));
+    }
+  };
 
   const handleStart = (scenario?: Scenario) => {
     const chosen = scenario || allScenarios.find(s => s.id === selectedScenarioId) || pickRandom(allScenarios, 1)[0];
@@ -140,6 +160,9 @@ export default function Chatroom() {
       const uuid: string = sessionRes.data.session_uuid;
       setCurrentSessionUuid(uuid);
       setSessionUuid(uuid);
+      if (sessionRes.data.student_name) {
+        setStudentName(sessionRes.data.student_name);
+      }
 
       // Get LiveKit token
       const tokenRes = await api.post("/livekit/token", { session_uuid: uuid });
@@ -162,6 +185,7 @@ export default function Chatroom() {
   const handleTogglePause = () => setIsPaused(!isPaused);
 
   const handleEnd = async () => {
+    setIsEnding(true);
     if (currentSessionUuid) {
       try {
         await api.post(`/session/${currentSessionUuid}/end`);
@@ -207,8 +231,8 @@ export default function Chatroom() {
         <header className="h-14 bg-white/95 backdrop-blur-sm border-b border-[#E5E2D9] flex items-center justify-between px-6 shrink-0 z-20">
           <div className="flex items-center gap-4 pl-12 lg:pl-0">
              {isStarted ? (
-               <h2 className="text-sm font-bold text-[#3D3831]">
-                 情境：{activeScenario?.title}
+               <h2 className="text-sm font-bold text-[#3D3831] truncate max-w-[500px]">
+                 {activeScenario?.title}——<span className="font-normal text-[#706C61]">「{activeScenario?.description}」</span>
                </h2>
              ) : (
                <>
@@ -262,13 +286,30 @@ export default function Chatroom() {
               </div>
               <div className="flex flex-col">
                 <span className="font-heading text-base font-bold text-white drop-shadow-md">
-                  小明（國二）
+                  {studentName}
                 </span>
                 <div className="flex items-center gap-1.5">
                   <div className={`w-1.5 h-1.5 rounded-full ${isPaused ? "bg-[#A09C94]" : "bg-primary animate-pulse"}`} />
                   <span className="text-xs font-medium text-white/80 drop-shadow-sm">
                     {emotionLabel()}
                   </span>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* ENDING / ANALYSIS OVERLAY */}
+          {isEnding && (
+            <div className="absolute inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center animate-in fade-in duration-300">
+              <div className="bg-white/95 backdrop-blur-md border border-[#E5E2D9] p-10 rounded-2xl shadow-2xl flex flex-col items-center gap-6 max-w-sm text-center">
+                <div className="w-16 h-16 bg-primary/10 rounded-full flex items-center justify-center">
+                  <Loader2 className="w-8 h-8 text-primary animate-spin" />
+                </div>
+                <div className="flex flex-col gap-2">
+                  <h3 className="font-heading text-2xl font-bold text-[#3D3831]">分析對話中...</h3>
+                  <p className="text-sm text-[#706C61] font-medium leading-relaxed">
+                    AI 教練正在評估您的對話表現，<br/>請稍候片刻。
+                  </p>
                 </div>
               </div>
             </div>
@@ -377,6 +418,7 @@ export default function Chatroom() {
               onEnd={handleEnd}
               onEmotionChange={(emo) => setStudentEmotion(emo as any)}
               livekitToken={livekitToken}
+              studentName={studentName}
             />
           )}
         </div>
