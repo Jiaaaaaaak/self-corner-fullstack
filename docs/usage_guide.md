@@ -67,6 +67,9 @@ LIVEKIT_API_SECRET=your_livekit_api_secret
 OPENAI_API_KEY=sk-...
 DATABASE_URL=postgresql+asyncpg://postgres:password@localhost:5432/your_db
 JWT_SECRET_KEY=your_random_secret_key
+FRONTEND_URL=http://localhost:8080
+GOOGLE_CLIENT_ID=your_google_client_id
+GOOGLE_CLIENT_SECRET=your_google_client_secret
 ```
 
 ### 2.3 建立 PostgreSQL 資料庫
@@ -165,7 +168,7 @@ npm run dev
 ## 4. 使用流程
 
 ```
-註冊/登入
+註冊/登入（支援帳號密碼或 Google OAuth）
     ↓
 首頁（了解平台與 SEL 框架）
     ↓
@@ -196,7 +199,7 @@ npm run dev
 - 支援帳號（用戶名或電子信箱）+ 密碼登入
 - 提供「註冊」彈窗（需填：用戶名、姓、名、電子信箱、密碼）
 - 提供「忘記密碼」彈窗
-- Google OAuth 按鈕（待串接，目前為預留位置）
+- Google OAuth 登入（需在 `backend/.env` 設定 `GOOGLE_CLIENT_ID` 與 `GOOGLE_CLIENT_SECRET`）
 
 ### 5.2 首頁（`/home`）
 
@@ -254,6 +257,8 @@ npm run dev
 | POST | `/auth/refresh` | 刷新 access token |
 | POST | `/auth/logout` | 登出（撤銷 token） |
 | GET | `/auth/me` | 取得當前使用者資訊 |
+| GET | `/auth/google/login` | 重導向至 Google 授權頁 |
+| GET | `/auth/google/callback` | Google OAuth 回調處理 |
 | GET | `/scenarios` | 取得所有情境列表 |
 | POST | `/session/create` | 建立新 Session（帶 `scenario_id`） |
 | POST | `/session/{uuid}/end` | 結束 Session + 觸發教練分析 |
@@ -285,9 +290,16 @@ npm run dev
 
 ### Q：登入後重新整理頁面被導回登入頁？
 
-**A**：登入狀態透過 `localStorage` 持久化（Zustand persist），正常不會遺失。若發生此問題：
+**A**：登入狀態透過 `AuthInitializer` 元件（`App.tsx`）在頁面載入時自動呼叫 `/auth/me` 恢復。若仍被導回登入頁：
 1. 確認後端 `JWT_SECRET_KEY` 在每次重啟後保持一致（在 `backend/.env` 中固定設定，而非自動生成）
-2. 清除瀏覽器 `localStorage` 重新登入
+2. 確認 `backend/.env` 的 `FRONTEND_URL` 與前端實際 port 一致（預設為 `http://localhost:8080`）
+
+### Q：Google OAuth 登入後被導回登入頁而非首頁？
+
+**A**：Google OAuth 透過整頁 302 重導向完成，回到前端後由 `AuthInitializer` 自動以 cookie 呼叫 `/auth/me` 恢復登入狀態。若失敗：
+1. 確認 `backend/.env` 中 `FRONTEND_URL=http://localhost:8080`（須與前端實際 port 一致）
+2. 確認 `vite.config.ts` 的 `server.proxy` 有設定 `/auth` 轉發至 `http://localhost:8000`
+3. 確認 `GOOGLE_CLIENT_ID` 與 `GOOGLE_CLIENT_SECRET` 正確且已在 Google Cloud Console 設定正確的 redirect URI
 
 ### Q：`seed_data.py` 執行後提示「already exist, skipping」？
 
@@ -323,4 +335,4 @@ pip install "bcrypt==4.0.1"  # 若不符合則重新安裝
 
 ---
 
-*SELf-Corner v2.0 | 2026-03-05*
+*SELf-Corner v2.1 | 2026-03-07*
