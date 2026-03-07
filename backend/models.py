@@ -76,12 +76,19 @@ class User(Base):
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
     username: Mapped[str] = mapped_column(String(50), unique=True, nullable=False, index=True)
     email: Mapped[str] = mapped_column(String(100), unique=True, nullable=False, index=True)
-    hashed_password: Mapped[str] = mapped_column(String(255), nullable=False)
+    hashed_password: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
     first_name: Mapped[Optional[str]] = mapped_column(String(50), nullable=True)
     last_name: Mapped[Optional[str]] = mapped_column(String(50), nullable=True)
     school: Mapped[Optional[str]] = mapped_column(String(200), nullable=True)
     experience_years: Mapped[Optional[str]] = mapped_column(String(50), nullable=True)
     role: Mapped[UserRole] = mapped_column(SQLEnum(UserRole), default=UserRole.TEACHER)
+
+    # Google OAuth
+    google_id: Mapped[Optional[str]] = mapped_column(String(255), unique=True, nullable=True, index=True)
+    auth_provider: Mapped[str] = mapped_column(String(20), default="local")
+    # auth_provider: "local" | "google" | "both"
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True)
+
 
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
     updated_at: Mapped[datetime] = mapped_column(

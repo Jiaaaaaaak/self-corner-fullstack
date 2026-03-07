@@ -84,6 +84,40 @@ class DBManager:
         )
         return result.scalar_one() or 0
 
+    
+    async def get_user_by_google_id(self, google_id: str) -> Optional[User]:
+        result = await self.db.execute(select(User).where(User.google_id == google_id))
+        return result.scalar_one_or_none()
+
+    async def find_or_create_google_user(self, google_id: str, email: str) -> User:
+        """查找或建立 Google 使用者，處理帳號合併"""
+        # 1. 用 google_id 查（已綁定的使用者）
+        user = await self.get_user_by_google_id(google_id)
+        if user:
+            return user
+
+        # 2. 用 email 查（合併帳號）
+        user = await self.get_user_by_email(email)
+        if user:
+            user.google_id = google_id
+            user.auth_provider = "both" if user.hashed_password else "google"
+            await self.db.flush()
+            await self.db.refresh(user)
+            return user
+
+        # 3. 建立新使用者
+        user = User(
+            username=email.split("@")[0],
+            email=email,
+            hashed_password=None,
+            google_id=google_id,
+            auth_provider="google",
+        )
+        self.db.add(user)
+        await self.db.flush()
+        await self.db.refresh(user)
+        return user
+
     # =========================================================================
     # Refresh Token CRUD
     # =========================================================================

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -25,6 +25,7 @@ export default function Login() {
   const [error, setError] = useState<string | null>(null);
   const [shouldShake, setShouldShake] = useState(false);
 
+  // Registration dialog state
   const [registerOpen, setRegisterOpen] = useState(false);
   const [regUsername, setRegUsername] = useState("");
   const [regLastName, setRegLastName] = useState("");
@@ -37,11 +38,34 @@ export default function Login() {
   const [showRegConfirmPassword, setShowRegConfirmPassword] = useState(false);
   const [isRegistering, setIsRegistering] = useState(false);
 
+  // Forgot password dialog state
   const [forgotOpen, setForgotOpen] = useState(false);
   const [forgotEmail, setForgotEmail] = useState("");
 
   const isFilled = email.trim() !== "" && password.trim() !== "";
 
+  // =========================================================================
+  // Google OAuth 錯誤處理（從 URL query params 讀取）
+  // =========================================================================
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const err = params.get("error");
+    const msgs: Record<string, string> = {
+      oauth_failed: "Google 登入失敗，請稍後再試",
+      invalid_state: "登入請求已過期，請重新嘗試",
+      email_not_verified: "請先在 Google 驗證您的 email",
+      access_denied: "您已取消 Google 登入",
+      account_disabled: "您的帳號已被停用",
+    };
+    if (err && msgs[err]) {
+      toast({ title: "登入失敗", description: msgs[err], variant: "destructive" });
+      window.history.replaceState({}, "", window.location.pathname);
+    }
+  }, []);
+
+  // =========================================================================
+  // Login
+  // =========================================================================
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!isFilled || isValidating) return;
@@ -55,7 +79,9 @@ export default function Login() {
       setUser(meRes.data);
       navigate("/home");
     } catch (err: any) {
-      setError("帳號或密碼錯誤，請重新輸入。");
+      const msg =
+        err?.response?.data?.detail ?? "帳號或密碼錯誤，請重新輸入。";
+      setError(msg);
       setShouldShake(true);
       setTimeout(() => setShouldShake(false), 500);
     } finally {
@@ -63,6 +89,16 @@ export default function Login() {
     }
   };
 
+  // =========================================================================
+  // Google Login
+  // =========================================================================
+  const handleGoogleLogin = () => {
+    window.location.href = "/auth/google/login";
+  };
+
+  // =========================================================================
+  // Register
+  // =========================================================================
   const validatePassword = (pwd: string): boolean => {
     return /[a-zA-Z]/.test(pwd) && pwd.length >= 10;
   };
@@ -93,6 +129,7 @@ export default function Login() {
       setRegisterOpen(false);
       setRegUsername(""); setRegLastName(""); setRegFirstName("");
       setRegEmail(""); setRegPassword(""); setRegConfirmPassword("");
+      setRegErrors({});
     } catch (err: any) {
       const msg = err.response?.data?.detail ?? "註冊失敗，請稍後再試";
       toast({ title: "錯誤", description: msg, variant: "destructive" });
@@ -101,25 +138,32 @@ export default function Login() {
     }
   };
 
-  const handleForgotPassword = (e: React.FormEvent) => {
+  // =========================================================================
+  // Forgot Password
+  // =========================================================================
+  const handleForgotPassword = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!forgotEmail.trim() || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(forgotEmail)) {
       toast({ title: "錯誤", description: "請輸入有效的電子信箱", variant: "destructive" });
       return;
     }
+    await api.post("/auth/forgot-password", { email: forgotEmail });
     toast({ title: "已發送", description: "密碼重設信件已發送至您的信箱" });
     setForgotOpen(false);
+    setForgotEmail("");
   };
 
+  // =========================================================================
+  // Render
+  // =========================================================================
   return (
     <div className="fixed inset-0 w-full h-full bg-[#FAF9F6] flex items-center justify-center p-4 overflow-y-auto">
       {/* Background Chalk Decoration */}
       <div className="absolute inset-0 chalk-dots opacity-[0.08] pointer-events-none" />
 
       <div
-        className={`w-full max-w-[440px] bg-white border border-[#E5E2D9] p-10 flex flex-col gap-6 shadow-xl rounded-2xl transition-all duration-300 relative z-10 ${
-          shouldShake ? "animate-shake" : ""
-        }`}
+        className={`w-full max-w-[440px] bg-white border border-[#E5E2D9] p-10 flex flex-col gap-6 shadow-xl rounded-2xl transition-all duration-300 relative z-10 ${shouldShake ? "animate-shake" : ""
+          }`}
       >
         {/* Brand area */}
         <div className="flex flex-col items-center gap-3">
@@ -199,11 +243,10 @@ export default function Login() {
           {/* Login button */}
           <button
             type="submit"
-            className={`w-full h-12 mt-2 font-heading text-[13px] font-bold tracking-[0.1em] transition-all flex items-center justify-center gap-2 rounded-xl shadow-lg ${
-              isFilled
+            className={`w-full h-12 mt-2 font-heading text-[13px] font-bold tracking-[0.1em] transition-all flex items-center justify-center gap-2 rounded-xl shadow-lg ${isFilled
                 ? "bg-primary text-white hover:bg-[#C8694F] shadow-primary/20"
                 : "bg-[#D4C4B8] text-white/60 cursor-not-allowed"
-            } ${isValidating ? "cursor-wait" : ""}`}
+              } ${isValidating ? "cursor-wait" : ""}`}
             disabled={!isFilled || isValidating}
           >
             {isValidating ? (
@@ -214,6 +257,22 @@ export default function Login() {
             ) : (
               "登入系統 LOGIN"
             )}
+          </button>
+
+          {/* Google Login button */}
+          <button
+            type="button"
+            onClick={handleGoogleLogin}
+            disabled={isValidating}
+            className="w-full h-12 border border-[#E5E2D9] bg-white hover:bg-[#FAF9F6] text-[#3D3831] font-heading text-[13px] font-bold tracking-[0.05em] transition-all flex items-center justify-center gap-3 rounded-xl"
+          >
+            <svg viewBox="0 0 24 24" width="18" height="18">
+              <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" />
+              <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" />
+              <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" />
+              <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" />
+            </svg>
+            使用 Google 登入
           </button>
 
           {/* Signup link */}
@@ -235,13 +294,13 @@ export default function Login() {
       <Dialog open={registerOpen} onOpenChange={setRegisterOpen}>
         <DialogContent className="sm:max-w-md border-none p-0 overflow-hidden rounded-2xl shadow-2xl">
           <div className="bg-[#3D3831] p-6 text-white flex items-center gap-3">
-             <div className="w-10 h-10 bg-primary rounded-xl flex items-center justify-center shadow-lg">
-                <Lock className="w-5 h-5 text-white" />
-             </div>
-             <div>
-                <h2 className="font-heading text-xl font-bold">建立教師帳號</h2>
-                <p className="text-xs text-white/60 font-medium">Create your safe practice space</p>
-             </div>
+            <div className="w-10 h-10 bg-primary rounded-xl flex items-center justify-center shadow-lg">
+              <Lock className="w-5 h-5 text-white" />
+            </div>
+            <div>
+              <h2 className="font-heading text-xl font-bold">建立教師帳號</h2>
+              <p className="text-xs text-white/60 font-medium">Create your safe practice space</p>
+            </div>
           </div>
           <form onSubmit={handleRegister} className="p-8 space-y-4">
             <div className="space-y-1.5">
@@ -312,7 +371,7 @@ export default function Login() {
       <Dialog open={forgotOpen} onOpenChange={setForgotOpen}>
         <DialogContent className="sm:max-w-md border-none p-0 overflow-hidden rounded-2xl shadow-2xl">
           <div className="bg-[#3D3831] p-6 text-white">
-             <h2 className="font-heading text-xl font-bold">重設密碼</h2>
+            <h2 className="font-heading text-xl font-bold">重設密碼</h2>
           </div>
           <form onSubmit={handleForgotPassword} className="p-8 space-y-4">
             <p className="text-sm text-[#706C61] leading-relaxed font-medium">

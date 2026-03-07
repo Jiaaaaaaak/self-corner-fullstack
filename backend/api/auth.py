@@ -3,7 +3,8 @@ API Layer - Auth Endpoints
 處理登入、註冊、Token 刷新、登出、忘記密碼
 """
 from datetime import datetime
-from fastapi import APIRouter, Depends, HTTPException, Response, Cookie, status
+from fastapi import APIRouter, Depends, HTTPException, Response, Cookie, status, Query
+from fastapi.responses import RedirectResponse
 from pydantic import BaseModel, EmailStr
 from typing import Optional
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -14,6 +15,14 @@ from core.auth_module import (
     hash_password, verify_password,
     create_access_token, create_refresh_token, decode_access_token,
 )
+from services.oauth import (
+    state_manager,
+    get_google_oauth_url,
+    exchange_code_for_token,
+    verify_google_token,
+    FRONTEND_URL,
+)
+
 
 router = APIRouter(prefix="/auth", tags=["Auth"])
 
@@ -128,7 +137,7 @@ async def login(
     user = await db_manager.get_user_by_email(body.account)
     if not user:
         user = await db_manager.get_user_by_username(body.account)
-    if not user or not verify_password(body.password, user.hashed_password):
+    if not user or not user.hashed_password or not verify_password(body.password, user.hashed_password):
         raise HTTPException(status_code=401, detail="帳號或密碼錯誤")
 
     access_token = create_access_token({"sub": str(user.id)})
@@ -244,3 +253,80 @@ async def update_me(
         school=user.school,
         experience_years=user.experience_years,
     )
+
+# =============================================================================
+# Google OAuth Endpoints
+# =============================================================================
+
+@router.get("/google/login")
+async def google_login():
+    """重導向到 Google 授權頁面"""
+    state = state_manager.create()
+    auth_url = get_google_oauth_url(state)
+    return RedirectResponse(url=auth_url, status_code=302)
+
+
+@router.get("/google/callback")
+async def google_callback(
+    response: Response,
+    code: Optional[str] = Query(None),
+    state: Optional[str] = Query(None),
+    error: Optional[str] = Query(None),
+    db: AsyncSession = Depends(get_db),
+):
+    """Google OAuth 回調"""
+    if error:
+        error_code = "access_denied" if error == "access_denied" else "oauth_failed"
+        return RedirectResponse(
+            url=f"{FRONTEND_URL}/login?error={error_code}", status_code=302
+        )
+
+    if not code or not state:
+        return RedirectResponse(
+            url=f"{FRONTEND_URL}/login?error=oauth_failed", status_code=302
+        )
+
+    try:
+        if not state_manager.verify(state):
+            return RedirectResponse(
+                url=f"{FRONTEND_URL}/login?error=invalid_state", status_code=302
+            )
+
+        token_data = await exchange_code_for_token(code)
+        user_info = verify_google_token(token_data["id_token"])
+
+        db_manager = DBManager(db)
+        user = await db_manager.find_or_create_google_user(
+            google_id=user_info["google_id"],
+            email=user_info["email"],
+        )
+
+        if not user.is_active:
+            return RedirectResponse(
+                url=f"{FRONTEND_URL}/login?error=account_disabled", status_code=302
+            )
+
+        access_token = create_access_token({"sub": str(user.id)})
+        refresh_token_str, expires_at = create_refresh_token()
+        await db_manager.create_refresh_token(user.id, refresh_token_str, expires_at)
+
+        redirect = RedirectResponse(url=f"{FRONTEND_URL}/home", status_code=302)
+        redirect.set_cookie(
+            key=ACCESS_COOKIE, value=access_token,
+            httponly=True, samesite="lax", max_age=15 * 60,
+        )
+        redirect.set_cookie(
+            key=REFRESH_COOKIE, value=refresh_token_str,
+            httponly=True, samesite="lax", max_age=7 * 24 * 60 * 60,
+        )
+        return redirect
+
+    except ValueError as e:
+        err = "email_not_verified" if "Email not verified" in str(e) else "oauth_failed"
+        return RedirectResponse(
+            url=f"{FRONTEND_URL}/login?error={err}", status_code=302
+        )
+    except Exception:
+        return RedirectResponse(
+            url=f"{FRONTEND_URL}/login?error=oauth_failed", status_code=302
+        )
