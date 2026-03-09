@@ -383,6 +383,10 @@ async def seed():
                 hashed_password=hash_password(TEST_USER["password"]),
                 first_name=TEST_USER["first_name"],
                 last_name=TEST_USER["last_name"],
+
+                #測試帳號沒有設驗證，加這行才能登入測試帳號
+                is_email_verified=True,  
+
             ))
             print(f"[Seed] Test user created.")
             print(f"       帳號：{TEST_USER['username']}")

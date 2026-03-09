@@ -15,6 +15,9 @@ from core.auth_module import (
     hash_password, verify_password,
     create_access_token, create_refresh_token, decode_access_token,
 )
+from services.email_service import (
+    send_verification_email, send_password_reset_email
+)
 from services.oauth import (
     state_manager,
     get_google_oauth_url,
@@ -49,6 +52,10 @@ class LoginRequest(BaseModel):
 
 class ForgotPasswordRequest(BaseModel):
     email: EmailStr
+
+class ResetPasswordRequest(BaseModel):
+    token: str
+    new_password: str
 
 
 class UserResponse(BaseModel):
@@ -114,6 +121,12 @@ async def register(body: RegisterRequest, db: AsyncSession = Depends(get_db)):
         first_name=body.first_name,
         last_name=body.last_name,
     )
+    # 建立驗證 token 並寄信
+    try:
+        token = await db_manager.create_email_verification_token(user.id)
+        await send_verification_email(user.email, token)
+    except Exception as e:
+        print(f"[WARN] 驗證信寄送失敗: {e}")
     return UserResponse(
         id=user.id,
         username=user.username,
@@ -139,6 +152,12 @@ async def login(
         user = await db_manager.get_user_by_username(body.account)
     if not user or not user.hashed_password or not verify_password(body.password, user.hashed_password):
         raise HTTPException(status_code=401, detail="帳號或密碼錯誤")
+
+    # 檢查是否已驗證 email
+    if not user.is_email_verified:
+        raise HTTPException(
+            status_code=403, detail="請先至信箱驗證您的電子郵件"
+        )
 
     access_token = create_access_token({"sub": str(user.id)})
     refresh_token_str, expires_at = create_refresh_token()
@@ -187,10 +206,75 @@ async def logout(
 
 
 @router.post("/forgot-password")
-async def forgot_password(body: ForgotPasswordRequest):
-    # 本期不實作寄信，回傳成功訊息避免暴露帳號是否存在
+async def forgot_password(
+    body: ForgotPasswordRequest, db: AsyncSession = Depends(get_db)
+):
+    db_manager = DBManager(db)
+    user = await db_manager.get_user_by_email(body.email)
+    if user and user.hashed_password:
+        # 只有 local/both 使用者才能重設密碼（純 Google 使用者沒有密碼）
+        try:
+            token = await db_manager.create_password_reset_token(user.id)
+            await send_password_reset_email(user.email, token)
+        except Exception as e:
+            print(f"[WARN] 重設信寄送失敗: {e}")
+    # 無論使用者是否存在都回傳相同訊息（防列舉攻擊）
     return {"message": "若此信箱已註冊，密碼重設信件已發送"}
 
+@router.get("/verify-email")
+async def verify_email(
+    token: str = Query(...), db: AsyncSession = Depends(get_db)
+):
+    db_manager = DBManager(db)
+    user_id = await db_manager.verify_email_token(token)
+    if not user_id:
+        raise HTTPException(400, "驗證連結無效或已過期")
+    return {"message": "信箱驗證成功，您現在可以登入了"}
+
+
+@router.post("/resend-verification")
+async def resend_verification(
+    body: ForgotPasswordRequest,  # 複用，只需要 email 欄位
+    db: AsyncSession = Depends(get_db),
+):
+    db_manager = DBManager(db)
+    user = await db_manager.get_user_by_email(body.email)
+    if user and not user.is_email_verified:
+        try:
+            token = await db_manager.create_email_verification_token(user.id)
+            await send_verification_email(user.email, token)
+        except Exception:
+            pass
+    # 統一回傳訊息，不洩漏使用者是否存在
+    return {"message": "若該信箱已註冊且未驗證，驗證信已重新寄出"}
+
+
+@router.post("/reset-password")
+async def reset_password(
+    body: ResetPasswordRequest, db: AsyncSession = Depends(get_db)
+):
+    if len(body.new_password) < 10:
+        raise HTTPException(400, "密碼長度至少 10 字元")
+    db_manager = DBManager(db)
+    hashed = hash_password(body.new_password)
+    success = await db_manager.consume_password_reset_token(
+        body.token, hashed
+    )
+    if not success:
+        raise HTTPException(400, "重設連結無效或已過期")
+    return {"message": "密碼重設成功，請重新登入"}
+
+
+@router.get("/validate-reset-token")
+async def validate_reset_token(
+    token: str = Query(...), db: AsyncSession = Depends(get_db)
+):
+    """讓前端 ResetPassword 頁面載入時先確認 token 是否有效"""
+    db_manager = DBManager(db)
+    user_id = await db_manager.verify_password_reset_token(token)
+    if not user_id:
+        raise HTTPException(400, "重設連結無效或已過期")
+    return {"valid": True}
 
 @router.get("/me", response_model=UserResponse)
 async def get_me(
@@ -300,6 +384,11 @@ async def google_callback(
             google_id=user_info["google_id"],
             email=user_info["email"],
         )
+
+        # Google 使用者的 email 已由 Google 驗證
+        if not user.is_email_verified:
+            user.is_email_verified = True
+            await db.flush()
 
         if not user.is_active:
             return RedirectResponse(

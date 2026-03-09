@@ -74,8 +74,79 @@ npm run test:watch # Vitest 監聽模式
 
 - **HttpOnly Cookie**：`access_token`（15 分鐘）+ `refresh_token`（7 天）
 - **Token Rotation**：每次刷新撤銷舊 refresh_token，發行新的，記錄在 `refresh_tokens` 表
-- **前端攔截器**：`frontend/src/lib/api.ts` 攔截 401，自動呼叫 `/auth/refresh` 後重試原請求
+- **前端攔截器**：`frontend/src/lib/api.ts` 攔截 401，自動呼叫 `/auth/refresh` 後重試原請求；注意 `/auth/me` 已排除在攔截器之外（避免在 VerifyEmail 等未登入頁面觸發強制跳轉）
 - **後端保護**：各 API 路由透過 `get_current_user_id` dependency 從 Cookie 解析 JWT
+
+### Email 驗證機制（v1.5.0）
+
+註冊流程要求使用者完成 Email 驗證才能登入：
+
+```
+[前端] 使用者填寫註冊表單 → POST /auth/register
+    → 後端建立 User（is_email_verified=False）
+    → 建立 EmailVerificationToken（24 小時有效）
+    → 透過 aiosmtplib 寄送驗證信（含 {FRONTEND_URL}/verify-email?token=xxx 連結）
+    → 回傳 201，前端 Dialog 切換為「等待驗證」畫面
+[使用者] 點擊信中連結 → 新分頁開啟 /verify-email?token=xxx
+    → VerifyEmail.tsx 呼叫 GET /auth/verify-email?token=xxx
+    → 後端驗證 token → 更新 User.is_email_verified=True → 刪除 token
+    → 前端顯示成功 → 2.5 秒後 window.close() 自動關閉分頁
+[原分頁] Login.tsx 監聽 window focus 事件
+    → 使用者切回原分頁時自動嘗試用註冊時的帳密登入
+    → 若驗證已完成 → 登入成功 → 直接導向 /home
+    → 若尚未驗證 → 靜默失敗，使用者繼續等待
+```
+
+相關檔案：
+- `backend/services/email_service.py` — SMTP 寄信（aiosmtplib），讀取 `SMTP_*` 環境變數
+- `backend/models.py` — `EmailVerificationToken`（24hr）、`PasswordResetToken`（1hr）
+- `backend/services/db_manager.py` — Token CRUD（create/verify/consume），驗證時同步更新 `User.is_email_verified`
+- `backend/api/auth.py` — `GET /auth/verify-email`、`POST /auth/resend-verification`
+- `frontend/src/pages/VerifyEmail.tsx` — 驗證結果頁（成功後自動關閉分頁）
+- `frontend/src/pages/Login.tsx` — 註冊後等待驗證畫面、15 秒後重寄按鈕、focus 自動登入
+
+### 忘記密碼機制（v1.5.0）
+
+```
+[前端] 忘記密碼 Dialog → POST /auth/forgot-password (email)
+    → 後端查 User（僅 local/both 使用者，純 Google 使用者跳過）
+    → 建立 PasswordResetToken（1 小時有效）→ 寄送重設信
+    → 統一回傳成功訊息（防列舉攻擊）
+[使用者] 點擊信中連結 → /reset-password?token=xxx
+    → ResetPassword.tsx 載入時先 GET /auth/validate-reset-token 確認 token 有效
+    → 使用者輸入新密碼 → POST /auth/reset-password (token, new_password)
+    → 後端驗證 token → 更新密碼 → 刪除 token
+    → 前端顯示成功 → 3 秒後跳轉 /login
+```
+
+相關檔案：
+- `backend/api/auth.py` — `POST /auth/forgot-password`、`POST /auth/reset-password`、`GET /auth/validate-reset-token`
+- `frontend/src/pages/ResetPassword.tsx` — token 預檢 + 設定新密碼表單
+
+### Google OAuth 機制（v1.4.0）
+
+```
+[前端] 點擊「使用 Google 登入」→ window.location.href = "/auth/google/login"
+    → Vite proxy 轉發至後端
+    → 後端產生 state token（CSRF 防護）→ 302 重導向至 Google 授權頁
+[Google] 使用者授權 → 302 回到 /auth/google/callback?code=xxx&state=xxx
+    → 後端驗證 state → 用 code 換 token → 驗證 id_token
+    → find_or_create_google_user()：google_id 查 → email 查合併 → 建新使用者
+    → 自動標記 is_email_verified=True（Google 已驗證過 email）
+    → 簽發 JWT + Refresh Token → 302 重導向至 {FRONTEND_URL}/home
+[前端] AuthInitializer 呼叫 /auth/me 恢復登入狀態
+```
+
+相關檔案：
+- `backend/services/oauth.py` — `StateManager`（in-memory CSRF）、`get_google_oauth_url()`、`exchange_code_for_token()`、`verify_google_token()`
+- `backend/api/auth.py` — `GET /auth/google/login`、`GET /auth/google/callback`
+- `backend/services/db_manager.py` — `get_user_by_google_id()`、`find_or_create_google_user()`（帳號合併邏輯）
+- `backend/models.py` — User 的 `google_id`、`auth_provider`（"local" | "google" | "both"）
+
+帳號合併規則：
+1. 用 `google_id` 查 → 找到直接登入
+2. 用 `email` 查 → 找到則綁定 `google_id`，`auth_provider` 改為 "both"
+3. 都沒有 → 建立新使用者，`auth_provider` = "google"，`hashed_password` = null
 
 ### 文字輸入模式的資料流
 
@@ -112,7 +183,8 @@ npm run test:watch # Vitest 監聽模式
 
 ### 前端狀態管理
 
-- **`useAuthStore`**（`frontend/src/lib/auth.ts`，Zustand + persist）：跨頁面共享 `user`、`isLoggedIn`、`sessionUuid`
+- **`useAuthStore`**（`frontend/src/lib/auth.ts`，Zustand）：跨頁面共享 `user`、`isLoggedIn`、`sessionUuid`
+  - 方法：`setUser(user)`、`logout()`（注意：Sidebar.tsx 須使用 `logout` 而非 `clearUser`）
 - `sessionUuid` 在 Chatroom 建立 Session 時寫入，Feedback 頁面讀取用來呼叫 `/report/{uuid}/feedback`
 - History 頁面點擊紀錄時會覆寫 `sessionUuid`，再導向 Feedback 頁
 
@@ -120,14 +192,24 @@ npm run test:watch # Vitest 監聽模式
 
 `frontend/src/App.tsx` 中的 `ProtectedRoute` 元件：`useAuthStore.isLoggedIn` 為 false 時會導向 `/login`。
 
+`/verify-email` 與 `/reset-password` 不受 `ProtectedRoute` 保護（使用者未登入即可存取）。
+
 ---
 
 ## 資料庫模型重點
 
-`models.py` 定義 8 張表，關鍵關聯：
+`models.py` 定義 10 張表，關鍵關聯：
 - `Session` → FK 到 `scenarios`（情境）和 `student_personalities`（個性）
 - `FeedbackReport` 與 `Session` 是 1:1 關係（`uselist=False`），在 `POST /session/{uuid}/end` 同步生成
 - `EmotionLog` 每輪逐字稿一筆，記錄 9 種情緒分數（0.0–1.0）
+- `EmailVerificationToken` / `PasswordResetToken` → FK 到 `users`（`ondelete="CASCADE"`），各自有 `expires_at` 控制有效期
+
+`User` 表的認證相關欄位：
+- `hashed_password`（nullable）：Google 使用者為 null
+- `google_id`（unique, nullable）：Google OAuth 綁定用
+- `auth_provider`："local" | "google" | "both"
+- `is_email_verified`（Boolean, default False）：未驗證的使用者登入時會被 403 擋住；Google OAuth 使用者在 callback 時自動設為 True
+- `is_active`（Boolean, default True）：停用帳號用
 
 `Scenario` 表的重要欄位：
 - `description`：給使用者看的情境說明（UI 顯示）
@@ -144,9 +226,13 @@ python seed_data.py
 
 ## 環境變數
 
-必填：`LIVEKIT_URL`、`LIVEKIT_API_KEY`、`LIVEKIT_API_SECRET`、`OPENAI_API_KEY`、`DATABASE_URL`、`JWT_SECRET_KEY`
+必填：`LIVEKIT_URL`、`LIVEKIT_API_KEY`、`LIVEKIT_API_SECRET`、`OPENAI_API_KEY`、`DATABASE_URL`、`JWT_SECRET_KEY`、`FRONTEND_URL`
 
-選填（有預設值）：`COACH_MODEL`（預設 `gpt-4o`）、`ENV`、`API_HOST`、`API_PORT`
+Google OAuth（選填，不設則 Google 登入按鈕無作用）：`GOOGLE_CLIENT_ID`、`GOOGLE_CLIENT_SECRET`、`GOOGLE_REDIRECT_URI`（預設 `http://localhost:8000/auth/google/callback`）
+
+Email SMTP（選填，不設則註冊時不寄驗證信但會印 warning）：`SMTP_HOST`（預設 `smtp.gmail.com`）、`SMTP_PORT`（預設 `587`）、`SMTP_USER`、`SMTP_PASSWORD`、`SMTP_FROM_NAME`（預設 `SELf-Corner`）
+
+其他選填（有預設值）：`COACH_MODEL`（預設 `gpt-4o`）、`ENV`、`API_HOST`、`API_PORT`
 
 詳見 `.env.example`。
 
@@ -206,6 +292,31 @@ pip show bcrypt  # 確認 Version: 4.0.1
 ### 5. CORS 須包含 Vite dev server 實際 port（8080）
 
 Vite 開發伺服器設定在 port **8080**（非預設 5173），`main.py` 的 `allow_origins` 必須包含兩者。
+
+### 6. Axios interceptor 須排除 `/auth/me`
+
+`api.ts` 的 401 interceptor 會自動嘗試 refresh 並在失敗時強制跳轉 `/login`。`/auth/me` 必須被排除，否則在未登入頁面（如 `/verify-email`、`/reset-password`）上，`AuthInitializer` 呼叫 `/auth/me` 失敗會觸發強制跳轉，導致使用者看不到頁面內容：
+
+```typescript
+// api.ts interceptor 條件須包含：
+!req.url?.includes("/auth/me")
+```
+
+### 7. Sidebar.tsx 的登出方法名稱必須與 auth store 一致
+
+`auth.ts` 的 Zustand store 定義的方法是 `logout()`，Sidebar.tsx 解構時必須使用 `logout`（而非 `clearUser` 等其他名稱），否則呼叫時會 TypeError：
+
+```typescript
+// ✅ 正確
+const { user, logout } = useAuthStore();
+
+// ❌ 錯誤：clearUser 不存在於 store，執行時 TypeError
+const { user, clearUser } = useAuthStore();
+```
+
+### 8. Google OAuth 的 `FRONTEND_URL` 必須與前端實際 port 一致
+
+`backend/services/oauth.py` 的 `FRONTEND_URL` 預設為 `http://localhost:5173`（Vite 舊預設），但本專案前端跑在 `8080`。**必須在 `.env` 中明確設定** `FRONTEND_URL=http://localhost:8080`，否則 Google OAuth callback 後的重導向會指向錯誤的 port。`email_service.py` 同樣依賴此變數產生驗證信連結。
 
 ---
 
@@ -271,6 +382,35 @@ VITE_LIVEKIT_URL=wss://your-project.livekit.cloud
   - 逐字稿使用 `div max-h overflow-y-auto`，**不使用 ScrollArea**（Radix ScrollArea Viewport 用 `h-full`，`max-height` 無法觸發可捲動區域）
 - `Feedback.tsx`：左欄保留雷達圖 + 情緒折線圖；右欄改為 `<FeedbackTabs>`，移除原本的獨立 expert card
 - `Info.tsx`：移除登出卡片（登出統一由 Sidebar 處理）；安全設定卡片改為可點擊樣式
+
+### Google OAuth 登入（v1.4.0）
+
+**後端新增**
+- `backend/services/oauth.py`：Google OAuth 全流程（StateManager、授權 URL、Token 交換、ID Token 驗證）
+- `backend/api/auth.py`：`GET /auth/google/login`、`GET /auth/google/callback`
+- `backend/services/db_manager.py`：`get_user_by_google_id()`、`find_or_create_google_user()`
+- `backend/models.py`：User 新增 `google_id`、`auth_provider`、`is_active`；`hashed_password` 改為 nullable
+
+**前端新增**
+- `Login.tsx`：Google 登入按鈕（`window.location.href = "/auth/google/login"`）
+- `App.tsx`：`AuthInitializer` 元件，頁面載入時呼叫 `/auth/me` 恢復登入狀態（解決 Google OAuth 302 redirect 後的狀態遺失問題）
+- `vite.config.ts`：`server.proxy["/auth"]` → `http://localhost:8000`
+
+### Email 驗證 + 忘記密碼（v1.5.0）
+
+**後端新增**
+- `backend/services/email_service.py`：SMTP 寄信服務（`send_verification_email`、`send_password_reset_email`）
+- `backend/models.py`：`EmailVerificationToken`、`PasswordResetToken` 兩張新表；User 新增 `is_email_verified`
+- `backend/services/db_manager.py`：Token CRUD（`create_email_verification_token`、`verify_email_token`、`create_password_reset_token`、`verify_password_reset_token`、`consume_password_reset_token`）
+- `backend/api/auth.py`：`GET /auth/verify-email`、`POST /auth/resend-verification`、`POST /auth/reset-password`、`GET /auth/validate-reset-token`；`POST /auth/register` 新增寄驗證信；`POST /auth/login` 新增 `is_email_verified` 檢查（403）；`POST /auth/forgot-password` 改為真正寄信；Google callback 自動標記 `is_email_verified=True`
+- `backend/requirements.txt`：新增 `aiosmtplib>=2.0.0`
+
+**前端新增**
+- `frontend/src/pages/VerifyEmail.tsx`：驗證結果頁，成功後 `window.close()` 自動關閉分頁
+- `frontend/src/pages/ResetPassword.tsx`：密碼重設頁，載入時 token 預檢，密碼規則與註冊一致（≥10 字元 + 含英文）
+- `frontend/src/pages/Login.tsx`：註冊成功後 Dialog 切換為等待驗證畫面（信封圖示 + 15 秒後重寄按鈕）；監聽 window focus 事件自動嘗試登入；「沒收到驗證信？」連結
+- `frontend/src/App.tsx`：新增 `/verify-email`、`/reset-password` 路由（不受 ProtectedRoute 保護）
+- `frontend/src/lib/api.ts`：interceptor 排除 `/auth/me`
 
 ---
 

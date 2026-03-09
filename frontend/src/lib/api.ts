@@ -25,7 +25,8 @@ api.interceptors.response.use(
             error.response?.status === 401 &&
             !req._retry &&
             !req.url?.includes("/auth/refresh") &&
-            !req.url?.includes("/auth/login")
+            !req.url?.includes("/auth/login") &&
+            !req.url?.includes("/auth/me")
         ) {
             if (isRefreshing) {
                 return new Promise((resolve, reject) => {

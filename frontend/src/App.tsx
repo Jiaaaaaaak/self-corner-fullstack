@@ -11,6 +11,8 @@ import History from "./pages/History";
 import Info from "./pages/Info";
 import Feedback from "./pages/Feedback";
 import NotFound from "./pages/NotFound";
+import VerifyEmail from "./pages/VerifyEmail";
+import ResetPassword from "./pages/ResetPassword";
 import { useAuthStore } from "./lib/auth";
 import api from "./lib/api";
 
@@ -59,6 +61,8 @@ const App = () => (
           <Routes>
             <Route path="/" element={<Navigate to="/login" replace />} />
             <Route path="/login" element={<Login />} />
+            <Route path="/verify-email" element={<VerifyEmail />} />
+            <Route path="/reset-password" element={<ResetPassword />} />
             <Route path="/home" element={<ProtectedRoute><Home /></ProtectedRoute>} />
             <Route path="/chatroom" element={<ProtectedRoute><Chatroom /></ProtectedRoute>} />
             <Route path="/history" element={<ProtectedRoute><History /></ProtectedRoute>} />
