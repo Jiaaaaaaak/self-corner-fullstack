@@ -211,7 +211,7 @@ class StudentVoicePipeline:
                 "CURIOUS": 0.15, "NEUTRAL": 0.40,
             }
             print("[Pipeline] Dynamic prompt assembled successfully.")
-            return build_student_prompt(scenario, personality)
+            return build_student_prompt(scenario, personality, session.age_group or "國中")
 
         print("[Pipeline] WARNING: Missing scenario or personality, using fallback prompt.")
         return "請務必使用繁體中文（台灣用語）。你是一位國中一年級的學生，正在與老師進行 SEL 對話練習。請自然地回應老師。"

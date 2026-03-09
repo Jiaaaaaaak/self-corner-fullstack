@@ -35,10 +35,18 @@
 
 ## 3. 會話管理 (Sessions)
 
-### POST `/session/start`
+### GET `/scenarios`
+- **描述**: 取得所有啟用的情境列表。
+- **Response**: `[ { "id": int, "title": "...", "sel_category": "...", "emoji": "...", "description": "..." }, ... ]`
+
+### GET `/scenarios/personalities`
+- **描述**: 取得所有學生個性列表。
+- **Response**: `[ { "id": int, "name": "...", "personality_type": "..." }, ... ]`
+
+### POST `/session/create`
 - **描述**: 開始一個新的對話 Session。
-- **Request**: `{ "scenario_id": int }`
-- **Response**: `{ "uuid": "...", "livekit_room": "...", "livekit_token": "..." }`
+- **Request**: `{ "scenario_id": int, "personality_id": int (optional), "age_group": string (optional) }`
+- **Response**: `{ "session_uuid": "...", "livekit_room_name": "...", "started_at": "..." }`
 
 ### POST `/session/{uuid}/end`
 - **描述**: 結束會話並觸發教練回饋生成。

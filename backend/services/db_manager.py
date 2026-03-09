@@ -138,6 +138,10 @@ class DBManager:
     # StudentPersonality CRUD
     # =========================================================================
 
+    async def get_all_personalities(self) -> List[StudentPersonality]:
+        result = await self.db.execute(select(StudentPersonality))
+        return list(result.scalars().all())
+
     async def get_random_personality(self) -> Optional[StudentPersonality]:
         result = await self.db.execute(select(StudentPersonality))
         personalities = list(result.scalars().all())
@@ -160,6 +164,7 @@ class DBManager:
         user_id: int,
         scenario_id: Optional[int] = None,
         personality_id: Optional[int] = None,
+        age_group: Optional[str] = None,
         title: Optional[str] = None,
         livekit_room_name: Optional[str] = None,
     ) -> Session:
@@ -168,6 +173,7 @@ class DBManager:
             user_id=user_id,
             scenario_id=scenario_id,
             personality_id=personality_id,
+            age_group=age_group,
             title=title or "未命名練習",
             livekit_room_name=livekit_room_name,
             is_active=True,

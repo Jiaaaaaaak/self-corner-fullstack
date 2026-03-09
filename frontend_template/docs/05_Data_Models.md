@@ -45,6 +45,7 @@
 | `user_id` | Integer (FK) | 關聯用戶 |
 | `scenario_id` | Integer (FK) | 選用的情境 |
 | `personality_id` | Integer (FK) | 分配的個性 |
+| `age_group` | String | 學生的學齡階段 |
 | `livekit_room_name`| String | LiveKit 房間名稱 |
 | `created_at` | DateTime | 開始時間 |
 

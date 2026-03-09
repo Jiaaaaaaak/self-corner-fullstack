@@ -9,9 +9,9 @@ from models import Scenario, StudentPersonality
 # 動態學生 Prompt 組裝
 # =============================================================================
 
-def build_student_prompt(scenario: Scenario, personality: StudentPersonality) -> str:
+def build_student_prompt(scenario: Scenario, personality: StudentPersonality, age_group: str = "國中") -> str:
     """
-    根據情境與學生個性動態組裝 Realtime API 的 System Prompt。
+    根據情境、學生個性與學齡動態組裝 Realtime API 的 System Prompt。
     優先使用 scenario.student_prompt（AI 專用情境描述），
     若不存在則 fallback 到 scenario.description（使用者介面顯示用）。
     """
@@ -20,7 +20,7 @@ def build_student_prompt(scenario: Scenario, personality: StudentPersonality) ->
     return f"""# 語言規則（最高優先級，必須嚴格遵守）
 請務必使用繁體中文（台灣慣用語法）進行所有對話，嚴禁使用任何簡體中文詞彙。
 
-你是一位叫做「{personality.name}」的國中一年級學生。
+你是一位叫做「{personality.name}」的{age_group}學生。
 
 # 你的個性與背景
 {personality.base_prompt}

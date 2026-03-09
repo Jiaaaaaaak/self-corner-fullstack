@@ -125,6 +125,7 @@ class Session(Base):
     personality_id: Mapped[Optional[int]] = mapped_column(
         ForeignKey("student_personalities.id"), nullable=True
     )
+    age_group: Mapped[Optional[str]] = mapped_column(String(50), nullable=True)
 
     title: Mapped[Optional[str]] = mapped_column(String(200))
     livekit_room_name: Mapped[Optional[str]] = mapped_column(String(100))

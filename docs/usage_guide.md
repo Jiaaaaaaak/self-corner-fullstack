@@ -93,7 +93,7 @@ python seed_data.py
 ```
 [INFO] Database tables created successfully!
 [Seed] Inserted 10 scenarios.
-[Seed] Inserted 5 student personalities.
+[Seed] Updated 10 student personalities.
 [Seed] Done.
 ```
 
@@ -171,20 +171,15 @@ npm run dev
     ↓
 對話空間 → 選擇情境
     ↓
-系統隨機分配學生個性（開始對話）
+選擇學生特質（10 種個性標籤）
+    ↓
+選擇學生學齡（國小、國中等 4 個階段）
     ↓
 即時語音對話（透過 LiveKit WebRTC）
     ↓
 點擊「結束」→ 後端觸發教練分析（gpt-4o）
     ↓
 回饋報告頁
-  ├─ SEL 五維雷達圖
-  ├─ 學生情緒流動折線圖（9 種情緒分別顯示）
-  ├─ 教練條列式回饋
-  ├─ 與 AI 教練深度文字討論
-  └─ 完整師生對話逐字稿
-    ↓
-歷史紀錄（顯示每次練習的回合數與時長，可點入查看回饋）
 ```
 
 ---
@@ -208,14 +203,16 @@ npm run dev
 | 功能 | 說明 |
 |------|------|
 | 情境卡 | 每次隨機顯示 6 張（從 10 個情境抽取），可點擊「換一批」刷新 |
-| 情境詳情 | 點擊情境卡後展開完整情境說明，按「開始」進入對話 |
-| 隨機情境 | 點擊「隨機情境」卡片由系統隨機選定 |
+| 情境詳情 | 點擊情境卡後展開完整情境說明，按「下一步」進入個性選擇 |
+| 學生特質 | 提供 10 種特定的性格類型（如：防衛刺蝟型、衝動干擾型等）供使用者挑選 |
+| 學生學齡 | 提供 4 個學齡階段（國小低年級、中年級、高年級、國中）供使用者挑選 |
+| 隨機挑戰 | 快速由系統自動選定情境進入對話 |
 | 語音對話 | 開始後麥克風自動啟動，與 AI 虛擬學生進行即時語音互動 |
 | 文字模式 | 透過文字輸入框發言，同樣會觸發 AI 學生語音回應；可與語音模式自由切換 |
 | 暫停/繼續 | 點擊 ⏸ 暫停對話，麥克風停止傳送音訊 |
 | 結束 | 點擊 🚪 結束對話，後端觸發教練分析後導向回饋頁 |
 
-> **每次對話**：系統會從情境資料庫取得完整情境說明，並從 5 種學生個性中隨機選取一種，動態組裝 AI 學生的 Prompt，確保每次體驗不同。
+> **每次對話**：使用者可自訂情境、學生特質與學齡。系統會根據這些選擇動態組裝 AI 學生的 Prompt，確保每次體驗的高擬真度與針對性。
 >
 > **輸入模式說明**：語音輸入與文字輸入皆透過 LiveKit 傳送給 Agent，最終都觸發 AI 學生語音回應，兩種模式下的發言內容都會即時顯示在對話框中。
 
@@ -255,7 +252,8 @@ npm run dev
 | POST | `/auth/logout` | 登出（撤銷 token） |
 | GET | `/auth/me` | 取得當前使用者資訊 |
 | GET | `/scenarios` | 取得所有情境列表 |
-| POST | `/session/create` | 建立新 Session（帶 `scenario_id`） |
+| GET | `/scenarios/personalities` | 取得所有學生個性列表 |
+| POST | `/session/create` | 建立新 Session（帶 `scenario_id`, `personality_id`, `age_group`） |
 | POST | `/session/{uuid}/end` | 結束 Session + 觸發教練分析 |
 | POST | `/livekit/token` | 取得 LiveKit 房間 Token |
 | GET | `/report/{uuid}/feedback` | 取得完整回饋報告 |
