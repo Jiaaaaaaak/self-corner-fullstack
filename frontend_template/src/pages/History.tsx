@@ -102,15 +102,6 @@ export default function History() {
                   <p className="text-[13px] text-[#706C61] font-medium">
                     練習時長 <span className="text-[#3D3831]">{item.duration}</span> · 回合數 <span className="text-[#3D3831]">{item.rounds}</span>
                   </p>
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      navigate(`/collection`);
-                    }}
-                    className="text-[10px] font-bold px-2 py-0.5 rounded-full border border-primary/20 text-primary bg-primary/5 hover:bg-primary/10 transition-colors"
-                  >
-                    📖 圖鑑
-                  </button>
                 </div>
               </div>
 

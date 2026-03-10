@@ -7,7 +7,7 @@ import Login from "./pages/Login";
 import Home from "./pages/Home";
 import Chatroom from "./pages/Chatroom";
 import History from "./pages/History";
-import Collection from "./pages/Collection";
+
 import Info from "./pages/Info";
 import Feedback from "./pages/Feedback";
 import NotFound from "./pages/NotFound";
@@ -26,7 +26,7 @@ const App = () => (
           <Route path="/home" element={<Home />} />
           <Route path="/chatroom" element={<Chatroom />} />
           <Route path="/history" element={<History />} />
-          <Route path="/collection" element={<Collection />} />
+          
           <Route path="/info" element={<Info />} />
           <Route path="/feedback" element={<Feedback />} />
           <Route path="*" element={<NotFound />} />

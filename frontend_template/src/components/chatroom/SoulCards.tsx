@@ -275,7 +275,7 @@ export default function SoulCards({ scenarios, open, onClose, onStart }: SoulCar
 
   // Title text
   const titleText = {
-    idle: "🃏 心靈牌卡",
+    idle: "🃏 隨機牌卡",
     dealing: "🃏 發牌中...",
     picking: "✨ 選擇你的命運牌卡...",
     revealing: "✨ 揭曉中...",

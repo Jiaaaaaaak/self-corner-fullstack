@@ -40,10 +40,14 @@ const COMPETENCY_COLORS = [
 const SCENARIO_META: Record<number, { estimatedMinutes: number; practiceCount: number }> = {
   1: { estimatedMinutes: 10, practiceCount: 275 },
   2: { estimatedMinutes: 12, practiceCount: 218 },
-  3: { estimatedMinutes: 8, practiceCount: 412 },
+  3: { estimatedMinutes: 8, practiceCount: 156 },
   4: { estimatedMinutes: 10, practiceCount: 189 },
-  5: { estimatedMinutes: 12, practiceCount: 301 },
-  6: { estimatedMinutes: 10, practiceCount: 156 },
+  5: { estimatedMinutes: 8, practiceCount: 412 },
+  6: { estimatedMinutes: 10, practiceCount: 143 },
+  7: { estimatedMinutes: 12, practiceCount: 301 },
+  8: { estimatedMinutes: 10, practiceCount: 156 },
+  9: { estimatedMinutes: 15, practiceCount: 98 },
+  10: { estimatedMinutes: 12, practiceCount: 127 },
 };
 
 type ViewMode = "grid" | "list";
@@ -125,7 +129,7 @@ export default function SkillTreeMap({ groups, onSelectScenario, onOpenSoulCards
             className="shrink-0 flex items-center gap-2 px-4 py-2 rounded-xl bg-gradient-to-br from-primary to-primary/80 text-primary-foreground shadow-lg hover:shadow-xl hover:scale-105 transition-all duration-300 group"
           >
             <span className="text-lg">🃏</span>
-            <span className="text-xs font-bold tracking-wide hidden sm:inline">心靈牌卡</span>
+            <span className="text-xs font-bold tracking-wide hidden sm:inline">隨機牌卡</span>
             <Sparkles className="w-3.5 h-3.5 opacity-60 group-hover:opacity-100 transition-opacity" />
           </button>
         </div>

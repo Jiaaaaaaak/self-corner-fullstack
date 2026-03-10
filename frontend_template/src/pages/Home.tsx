@@ -62,11 +62,12 @@ export default function Home() {
                   PLATFORM VISION
                 </span>
                 <h2 className="font-heading text-3xl md:text-5xl font-bold text-[#FAF9F6] leading-[1.15] tracking-tight max-w-[800px]">
-                  在安心的空間裡，練習溫柔而堅定的對話
+                  在安心的空間裡，<br />
+                  練習溫柔而堅定的對話
                 </h2>
                 <p className="text-[17px] text-[#A09C94] leading-relaxed max-w-[700px] font-medium">
-                  透過 Satir 薩提爾溝通模式與 SEL 社會情緒學習理論，我們為教師打造一個無壓力的
-                  AI 對話練習場。在這裡，每一次的嘗試都是成長的養分。
+                  透過 Satir 薩提爾溝通模式與 SEL 社會情緒學習理論，我們為教師打造一個無壓力的 AI 對話練習場。<br />
+                  在這裡，每一次的嘗試都是成長的養分。
                 </p>
               </div>
 
@@ -194,7 +195,7 @@ export default function Home() {
         <footer className="mt-auto px-6 md:px-12 py-10 bg-[#3D3831] text-white/60">
           <div className="flex flex-col md:flex-row items-center justify-between gap-6 max-w-[1280px] mx-auto">
             <div className="flex items-center gap-3">
-              <div className="w-6 h-6 bg-primary rounded-sm flex items-center justify-center text-white text-[10px] font-bold">S</div>
+              <img src="/img/logo/SELf_corner_Logo_transparent.png" alt="SELf-corner" className="w-6 h-6 rounded-sm object-contain" />
               <span className="font-heading font-bold tracking-widest text-white/90">SELf-corner</span>
             </div>
             <div className="flex gap-8 text-[11px] font-bold uppercase tracking-widest">
