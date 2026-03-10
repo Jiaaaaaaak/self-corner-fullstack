@@ -1,4 +1,15 @@
+import { useState } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import {
   House,
   MessageCircle,
@@ -16,7 +27,6 @@ const navItems = [
   { label: "首頁 Home", icon: House, path: "/home" },
   { label: "對話練習", icon: MessageCircle, path: "/chatroom" },
   { label: "歷史紀錄", icon: Clock3, path: "/history" },
-  { label: "心靈圖鑑", icon: BookOpen, path: "/collection" },
   { label: "個人帳號", icon: User, path: "/info" },
 ];
 
@@ -37,6 +47,7 @@ interface SidebarProps {
 }
 
 export default function Sidebar({ onNavigate, sessionInfo }: SidebarProps) {
+  const [logoutOpen, setLogoutOpen] = useState(false);
   const navigate = useNavigate();
   const location = useLocation();
 
@@ -57,9 +68,7 @@ export default function Sidebar({ onNavigate, sessionInfo }: SidebarProps) {
     <div className="flex flex-col h-full w-[260px] bg-[#1E1D1B] text-[#FAF9F6] py-8 px-0 border-r border-white/5">
       {/* Brand area */}
       <div className="flex items-center gap-3 px-6 mb-12">
-        <div className="w-7 h-7 bg-primary flex items-center justify-center text-white font-bold rounded-sm text-sm shadow-sm">
-          S
-        </div>
+        <img src="/img/logo/SELf_corner_Logo_transparent.png" alt="SELf-corner" className="w-7 h-7 rounded-sm shadow-sm object-contain" />
         <span className="font-heading text-base font-bold tracking-widest uppercase">
           SELf-corner
         </span>
@@ -146,8 +155,8 @@ export default function Sidebar({ onNavigate, sessionInfo }: SidebarProps) {
       {/* Spacer */}
       <div className="flex-1" />
 
-      {/* Session controls or Logout */}
-      {sessionInfo ? (
+      {/* Session controls */}
+      {sessionInfo && (
         <div className="px-3 mb-6 flex flex-col gap-1.5">
           <button
             onClick={sessionInfo.onTogglePause}
@@ -164,36 +173,59 @@ export default function Sidebar({ onNavigate, sessionInfo }: SidebarProps) {
             <span>結束對話並分析</span>
           </button>
         </div>
-      ) : (
-        <div className="px-3 mb-6">
-          <button
-            onClick={() => handleNav("/login")}
-            className="flex items-center gap-3 w-full px-4 py-3 text-[13px] font-heading font-semibold text-[#A09C94] hover:text-[#FAF9F6] hover:bg-white/5 transition-all rounded-sm group"
-          >
-            <LogOut className="w-5 h-5 shrink-0 group-hover:text-destructive transition-colors" />
-            <span>登出系統</span>
-          </button>
-        </div>
       )}
 
-      {/* User profile info */}
-      <div className="px-6 pt-6 border-t border-white/5">
-        <div className="flex items-center gap-3 group cursor-pointer" onClick={() => handleNav("/info")}>
-          <div className="w-10 h-10 rounded-full bg-[#3D3831] border border-white/10 flex items-center justify-center shrink-0 transition-transform group-hover:scale-105">
+      {/* User profile + logout */}
+      <div className="px-6 py-1.5 border-t border-white/5 mt-auto">
+        <div className="flex items-center gap-3">
+          <div
+            className="w-9 h-9 rounded-full bg-[#3D3831] border border-white/10 flex items-center justify-center shrink-0 hover:scale-105 transition-transform cursor-pointer"
+            onClick={() => handleNav("/info")}
+          >
             <span className="font-heading text-sm font-bold text-primary">
               {user.initial}
             </span>
           </div>
-          <div className="flex flex-col min-w-0">
-            <span className="font-heading text-[13px] font-bold truncate group-hover:text-primary transition-colors">
+          <div className="flex flex-col min-w-0 flex-1 cursor-pointer" onClick={() => handleNav("/info")}>
+            <span className="font-heading text-[13px] font-bold truncate hover:text-primary transition-colors">
               {user.name}
             </span>
-            <span className="text-[11px] text-[#706C61] truncate">
+            <span className="text-[10px] text-[#706C61] truncate">
               教育訓練模式
             </span>
           </div>
+          <button
+            onClick={() => setLogoutOpen(true)}
+            className="flex items-center gap-1.5 shrink-0 px-2 py-1.5 text-[11px] font-heading font-semibold text-[#706C61] hover:text-[#FAF9F6] transition-all rounded-sm group ml-2"
+          >
+            <LogOut className="w-3.5 h-3.5 shrink-0 group-hover:text-destructive transition-colors" />
+            <span>登出</span>
+          </button>
         </div>
       </div>
+
+      {/* Logout Confirmation */}
+      <AlertDialog open={logoutOpen} onOpenChange={setLogoutOpen}>
+        <AlertDialogContent className="sm:max-w-sm rounded-2xl border-none shadow-2xl">
+          <AlertDialogHeader>
+            <AlertDialogTitle className="font-heading text-lg text-[#3D3831]">確定要登出嗎？</AlertDialogTitle>
+            <AlertDialogDescription className="text-sm text-[#706C61]">
+              登出後將返回登入頁面，您的練習進度已自動儲存。
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter className="gap-2">
+            <AlertDialogCancel className="rounded-xl border-[#E5E2D9] text-[#706C61] font-heading font-bold text-sm hover:bg-[#FAF9F6]">
+              取消
+            </AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => handleNav("/login")}
+              className="rounded-xl bg-destructive text-white font-heading font-bold text-sm hover:bg-destructive/90"
+            >
+              確定登出
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

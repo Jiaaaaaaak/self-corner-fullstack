@@ -150,7 +150,7 @@ export default function Chatroom() {
                    Growth Map
                  </Badge>
                  <h2 className="text-sm font-bold text-[#3D3831] truncate max-w-[200px] md:max-w-none">
-                   心靈成長地圖
+                   對話成長練習
                  </h2>
                </>
              )}
@@ -293,7 +293,13 @@ export default function Chatroom() {
         onClose={() => setSoulCardsOpen(false)}
       onStart={(scenario: any) => {
           setSoulCardsOpen(false);
-          handleStart(scenario);
+          // Skip profile select & voice prompt — go directly into chat
+          setActiveScenario(scenario);
+          setStudentProfile({ personality: "introverted", grade: "junior-2" });
+          setVoiceEnabled(false);
+          setIsStarted(true);
+          setIsPaused(false);
+          setElapsedSeconds(0);
         }}
       />
 
@@ -344,7 +350,7 @@ export default function Chatroom() {
           <div className="p-8 space-y-6">
             <div className="space-y-4">
                {[
-                 { id: 1, text: "選擇情境：從成長地圖中挑選一個感興趣或想精進的對話挑戰，或抽取心靈牌卡。" },
+                 { id: 1, text: "選擇情境：從成長地圖中挑選一個感興趣或想精進的對話挑戰，或抽取隨機牌卡。" },
                  { id: 2, text: "模擬互動：使用語音或文字，像平常對話一樣與 AI 學生互動。" },
                  { id: 3, text: "覺察情緒：觀察學生的表情與情緒標籤，調整您的溝通姿態。" },
                  { id: 4, text: "暫停反思：若感到壓力或不知如何回應，隨時按暫停深呼吸。" },
