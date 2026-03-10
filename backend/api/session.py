@@ -47,6 +47,8 @@ async def get_current_user_id(
 
 class SessionCreateRequest(BaseModel):
     scenario_id: int
+    personality_id: Optional[int] = None
+    age_group: Optional[str] = None
     title: Optional[str] = None
 
 
@@ -56,6 +58,7 @@ class SessionResponse(BaseModel):
     livekit_room_name: str
     scenario_id: Optional[int]
     personality_id: Optional[int]
+    age_group: Optional[str]
     student_name: Optional[str]
     is_active: bool
     started_at: str
@@ -78,8 +81,14 @@ async def create_session(
     if not scenario:
         raise HTTPException(status_code=404, detail="情境不存在")
 
-    # 隨機選取學生個性
-    personality = await db_manager.get_random_personality()
+    # 取得或隨機選取學生個性
+    if body.personality_id:
+        personality = await db_manager.get_personality_by_id(body.personality_id)
+        if not personality:
+            raise HTTPException(status_code=404, detail="學生個性不存在")
+    else:
+        personality = await db_manager.get_random_personality()
+    
     personality_id = personality.id if personality else None
 
     # 建立 LiveKit 房間名稱
@@ -90,6 +99,7 @@ async def create_session(
         user_id=user_id,
         scenario_id=body.scenario_id,
         personality_id=personality_id,
+        age_group=body.age_group,
         title=body.title or scenario.title,
         livekit_room_name=livekit_room_name,
     )
@@ -100,6 +110,7 @@ async def create_session(
         livekit_room_name=session_data["livekit_room_name"],
         scenario_id=session_data["scenario_id"],
         personality_id=session_data["personality_id"],
+        age_group=session_data["age_group"],
         student_name=personality.name if personality else None,
         is_active=session_data["is_active"],
         started_at=session_data["started_at"].isoformat() + "+00:00",

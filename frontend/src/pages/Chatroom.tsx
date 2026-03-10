@@ -18,6 +18,8 @@ import {
 import { Badge } from "@/components/ui/badge";
 import ScenarioCard from "@/components/chatroom/ScenarioCard";
 import ScenarioDetail from "@/components/chatroom/ScenarioDetail";
+import PersonalitySelection from "@/components/chatroom/PersonalitySelection";
+import AgeGroupSelection from "@/components/chatroom/AgeGroupSelection";
 import RandomConfirm from "@/components/chatroom/RandomConfirm";
 import ChatPanel from "@/components/chatroom/ChatPanel";
 import api from "@/lib/api";
@@ -29,6 +31,12 @@ interface Scenario {
   tag: string;
   emoji: string;
   description: string;
+}
+
+interface Personality {
+  id: number;
+  name: string;
+  personality_type: string;
 }
 
 // Fallback scenarios if API is unavailable
@@ -55,13 +63,16 @@ export default function Chatroom() {
   const { setSessionUuid } = useAuthStore();
 
   const [allScenarios, setAllScenarios] = useState<Scenario[]>(fallbackScenarios);
+  const [allPersonalities, setAllPersonalities] = useState<Personality[]>([]);
   const [isStarted, setIsStarted] = useState(false);
   const [isPaused, setIsPaused] = useState(false);
   const [isEnding, setIsEnding] = useState(false);
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
   const [studentEmotion, setStudentEmotion] = useState<"neutral" | "angry" | "sad" | "thinking">("neutral");
-  const [studentName, setStudentName] = useState("小明");
+  const [studentName, setStudentName] = useState("學生");
   const [selectedScenarioId, setSelectedScenarioId] = useState<number | null>(null);
+  const [selectedPersonalityId, setSelectedPersonalityId] = useState<number | null>(null);
+  const [selectedAgeGroup, setSelectedAgeGroup] = useState<string | null>(null);
   const [activeScenario, setActiveScenario] = useState<Scenario | null>(null);
   const [activeTag, setActiveTag] = useState("全部");
   const [showRandomConfirm, setShowRandomConfirm] = useState(false);
@@ -70,6 +81,8 @@ export default function Chatroom() {
   const [livekitToken, setLivekitToken] = useState<string | null>(null);
   const [currentSessionUuid, setCurrentSessionUuid] = useState<string | null>(null);
   const [displayedScenarios, setDisplayedScenarios] = useState<Scenario[]>([]);
+  
+  const [selectionStep, setSelectionStep] = useState<"scenario" | "personality" | "ageGroup">("scenario");
 
   // Load scenarios from API
   useEffect(() => {
@@ -84,9 +97,12 @@ export default function Chatroom() {
       if (data.length > 0) {
         setAllScenarios(data);
       }
-    }).catch(() => {
-      // allScenarios remains as fallbackScenarios; activeTag effect will set displayedScenarios
-    });
+    }).catch(() => {});
+    
+    // Load personalities
+    api.get("/scenarios/personalities").then((res) => {
+      setAllPersonalities(res.data);
+    }).catch(() => {});
   }, []);
 
   // Timer Effect
@@ -142,11 +158,20 @@ export default function Chatroom() {
     }
   };
 
-  const handleStart = (scenario?: Scenario) => {
+  const handleStartPersonality = (scenario?: Scenario) => {
     const chosen = scenario || allScenarios.find(s => s.id === selectedScenarioId) || pickRandom(allScenarios, 1)[0];
     setActiveScenario(chosen);
-    setSelectedScenarioId(null);
+    setSelectionStep("personality");
     setShowRandomConfirm(false);
+  };
+
+  const handleNextToAgeGroup = (personalityId: number) => {
+    setSelectedPersonalityId(personalityId);
+    setSelectionStep("ageGroup");
+  };
+
+  const handleFinalStart = (ageGroup: string) => {
+    setSelectedAgeGroup(ageGroup);
     setVoicePromptOpen(true);
   };
 
@@ -156,7 +181,11 @@ export default function Chatroom() {
 
     try {
       // Create session
-      const sessionRes = await api.post("/session/create", { scenario_id: activeScenario.id });
+      const sessionRes = await api.post("/session/create", { 
+        scenario_id: activeScenario.id,
+        personality_id: selectedPersonalityId,
+        age_group: selectedAgeGroup
+      });
       const uuid: string = sessionRes.data.session_uuid;
       setCurrentSessionUuid(uuid);
       setSessionUuid(uuid);
@@ -169,17 +198,31 @@ export default function Chatroom() {
       setLivekitToken(tokenRes.data.token);
     } catch (err) {
       console.error("[Chatroom] Failed to create session or get token:", err);
-      // Still start the session locally so user can see the UI
     }
 
     setIsStarted(true);
     setIsPaused(false);
     setElapsedSeconds(0);
+    setSelectionStep("scenario"); // Reset for next time
+    setSelectedScenarioId(null);
+    setSelectedPersonalityId(null);
+    setSelectedAgeGroup(null);
   };
 
-  const handleCloseDetail = () => {
+  const handleCloseSelection = () => {
     setSelectedScenarioId(null);
+    setSelectedPersonalityId(null);
+    setSelectedAgeGroup(null);
+    setSelectionStep("scenario");
     setShowRandomConfirm(false);
+  };
+
+  const handleBackToScenario = () => {
+    setSelectionStep("scenario");
+  };
+
+  const handleBackToPersonality = () => {
+    setSelectionStep("personality");
   };
 
   const handleTogglePause = () => setIsPaused(!isPaused);
@@ -281,8 +324,8 @@ export default function Chatroom() {
           {/* Student avatar overlay - top left area */}
           {isStarted && (
             <div className="absolute top-6 left-8 z-20 flex items-center gap-4 animate-in fade-in duration-500">
-              <div className="w-14 h-14 rounded-full bg-white/90 backdrop-blur-sm border-2 border-white shadow-xl flex items-center justify-center text-3xl">
-                {renderStudentAvatar()}
+              <div className="w-14 h-14 rounded-full bg-white/90 backdrop-blur-sm border-2 border-white shadow-xl overflow-hidden flex items-center justify-center text-3xl">
+                <img src={`/avatars/${studentName}.png`} alt={studentName} className="w-full h-full object-cover" onError={(e) => { e.currentTarget.style.display = 'none'; }} />
               </div>
               <div className="flex flex-col">
                 <span className="font-heading text-base font-bold text-white drop-shadow-md">
@@ -340,7 +383,7 @@ export default function Chatroom() {
           )}
 
           {/* 1. SCENARIO SELECTION VIEW */}
-          {!isStarted && !selectedScenarioId && !showRandomConfirm && (
+          {!isStarted && !selectedScenarioId && !showRandomConfirm && selectionStep === "scenario" && (
             <div className="h-full overflow-y-auto px-6 py-10 md:px-12 animate-in fade-in duration-500 bg-[#FAF9F6]">
                <div className="max-w-5xl mx-auto flex flex-col gap-10">
                  <div className="flex flex-col gap-6">
@@ -398,16 +441,34 @@ export default function Chatroom() {
             </div>
           )}
 
-          {/* 2. DETAIL / CONFIRM VIEWS */}
-          {!isStarted && selectedScenarioId && (
+          {/* 2. DETAIL / SELECTION VIEWS */}
+          {!isStarted && selectedScenarioId && selectionStep === "scenario" && (
             <ScenarioDetail
               scenario={allScenarios.find(s => s.id === selectedScenarioId)!}
-              onClose={handleCloseDetail}
-              onStart={handleStart}
+              onClose={handleCloseSelection}
+              onStart={handleStartPersonality}
             />
           )}
+          
+          {!isStarted && selectionStep === "personality" && (
+            <PersonalitySelection
+              personalities={allPersonalities}
+              onClose={handleCloseSelection}
+              onBack={handleBackToScenario}
+              onNext={handleNextToAgeGroup}
+            />
+          )}
+
+          {!isStarted && selectionStep === "ageGroup" && (
+            <AgeGroupSelection
+              onClose={handleCloseSelection}
+              onBack={handleBackToPersonality}
+              onStart={handleFinalStart}
+            />
+          )}
+
           {!isStarted && showRandomConfirm && (
-            <RandomConfirm onClose={handleCloseDetail} onStart={() => handleStart()} />
+            <RandomConfirm onClose={handleCloseSelection} onStart={() => handleStartPersonality()} />
           )}
 
           {/* 3. ACTIVE SESSION VIEW - just ChatPanel over background */}
