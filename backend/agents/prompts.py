@@ -9,7 +9,7 @@ from models import Scenario, StudentPersonality
 # 動態學生 Prompt 組裝
 # =============================================================================
 
-def build_student_prompt(scenario: Scenario, personality: StudentPersonality, age_group: str = "國中") -> str:
+def build_student_prompt(scenario: Scenario, personality: StudentPersonality) -> str:
     """
     根據情境與學生個性動態組裝 Realtime API 的 System Prompt。
     整合：12-15歲認知邊界、五大人格特質(OCEAN)，
