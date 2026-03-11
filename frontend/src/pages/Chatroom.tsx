@@ -198,6 +198,9 @@ export default function Chatroom() {
       setLivekitToken(tokenRes.data.token);
     } catch (err) {
       console.error("[Chatroom] Failed to create session or get token:", err);
+      alert("無法建立練習，請重新整理頁面後再試。");
+      setIsStarted(false);
+      return;
     }
 
     setIsStarted(true);

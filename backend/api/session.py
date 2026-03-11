@@ -16,13 +16,18 @@ from database import get_db
 from services.db_manager import DBManager
 from core.session_manager import SessionManager
 from core.auth_module import decode_access_token
-from agents.prompts import COACH_PROMPT
+from agents.prompts import COACH_PROMPT, CRITIC_PROMPT, COACH_REVISION_PROMPT
 
 router = APIRouter(prefix="/session", tags=["Session"])
 
 coach_llm = ChatOpenAI(
     model=os.getenv("COACH_MODEL", "gpt-4o"),
     temperature=0.2,
+)
+
+critic_llm = ChatOpenAI(
+    model=os.getenv("COACH_MODEL", "gpt-4o"),
+    temperature=0.1,
 )
 
 
@@ -152,7 +157,7 @@ async def end_session(
         for t in transcripts
     )
 
-    # 4. 呼叫教練 LLM
+    # 4. 呼叫教練 LLM（生成初稿）
     prompt = COACH_PROMPT.format(conversation_history=conversation_history)
     try:
         response = await coach_llm.ainvoke(prompt)
@@ -167,14 +172,71 @@ async def end_session(
         print(f"[Coach LLM Error] Raw content: {getattr(response, 'content', 'N/A')[:500]}")
         return {"status": "ended", "report_ready": False, "message": "報告生成失敗"}
 
-    # 5. 儲存 FeedbackReport
-    await db_manager.create_feedback_report(
-        session_id=session.id,
-        sel_scores=report_data.get("sel_scores", {}),
-        feedback_text=report_data.get("feedback", ""),
-        analysis_text=report_data.get("analysis", ""),
-        selected_kist_cards=report_data.get("selected_kist_cards", []),
-    )
+    draft_data = report_data.copy()
+    critic_passed_val = None
+    critic_critique_val = None
+    critic_revision_val = None
+
+    # 5. Critic Agent 審核
+    try:
+        critic_prompt = CRITIC_PROMPT.format(
+            conversation_history=conversation_history,
+            draft_highlights=draft_data.get("highlights", ""),
+            draft_blind_spots=draft_data.get("blind_spots", ""),
+            draft_action_tips=draft_data.get("action_tips", ""),
+            draft_sel_scores=json.dumps(draft_data.get("sel_scores", {}), ensure_ascii=False),
+        )
+        critic_response = await critic_llm.ainvoke(critic_prompt)
+        critic_raw = critic_response.content.strip()
+        critic_raw = re.sub(r"^```(?:json)?\s*\n?", "", critic_raw)
+        critic_raw = re.sub(r"\n?```\s*$", "", critic_raw).strip()
+        critic_data = json.loads(critic_raw)
+
+        critic_passed_val = critic_data.get("passed", True)
+        critic_critique_val = critic_data.get("critique", "")
+        critic_revision_val = critic_data.get("revision_instructions", "")
+        print(f"[Critic Agent] passed={critic_passed_val}")
+
+        # 6. 若不通過 → Coach 修正
+        if not critic_passed_val:
+            revision_prompt = COACH_REVISION_PROMPT.format(
+                conversation_history=conversation_history,
+                draft_highlights=draft_data.get("highlights", ""),
+                draft_blind_spots=draft_data.get("blind_spots", ""),
+                draft_action_tips=draft_data.get("action_tips", ""),
+                draft_sel_scores=json.dumps(draft_data.get("sel_scores", {}), ensure_ascii=False),
+                critique=critic_critique_val,
+                revision_instructions=critic_revision_val,
+            )
+            revision_response = await coach_llm.ainvoke(revision_prompt)
+            revision_raw = revision_response.content.strip()
+            revision_raw = re.sub(r"^```(?:json)?\s*\n?", "", revision_raw)
+            revision_raw = re.sub(r"\n?```\s*$", "", revision_raw).strip()
+            report_data = json.loads(revision_raw)
+            print("[Coach Revision] applied.")
+
+    except Exception as e:
+        print(f"[Critic Agent Error] {e} — fallback 使用初稿")
+
+    # 7. 儲存 FeedbackReport（初稿 + Critic 輸出 + 最終版）
+    try:
+        await db_manager.create_feedback_report(
+            session_id=session.id,
+            sel_scores=report_data.get("sel_scores", {}),
+            highlights=report_data.get("highlights", ""),
+            blind_spots=report_data.get("blind_spots", ""),
+            action_tips=report_data.get("action_tips"),
+            draft_highlights=draft_data.get("highlights"),
+            draft_blind_spots=draft_data.get("blind_spots"),
+            draft_action_tips=draft_data.get("action_tips"),
+            draft_sel_scores=draft_data.get("sel_scores"),
+            critic_passed=critic_passed_val,
+            critic_critique=critic_critique_val,
+            critic_revision_instructions=critic_revision_val,
+        )
+    except Exception as e:
+        print(f"[FeedbackReport DB Error] {e}")
+        return {"status": "ended", "report_ready": False, "message": f"報告儲存失敗：{e}"}
 
     return {"status": "ended", "report_ready": True}
 
