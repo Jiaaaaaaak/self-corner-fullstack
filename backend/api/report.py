@@ -60,9 +60,10 @@ class FeedbackReportResponse(BaseModel):
     session_uuid: str
     scenario_title: Optional[str]
     sel_scores: dict
-    feedback_text: str
-    analysis_text: str
-    selected_kist_cards: list
+    highlights: str
+    blind_spots: str
+    action_tips: Optional[str] = None
+    selected_kist_cards: Optional[list] = None
     transcript: List[TranscriptEntry]
     emotion_logs: List[EmotionLogEntry]
     generated_at: Optional[str]
@@ -115,8 +116,9 @@ async def get_feedback(
         session_uuid=session_uuid,
         scenario_title=scenario_title,
         sel_scores=report.sel_scores,
-        feedback_text=report.feedback_text,
-        analysis_text=report.analysis_text,
+        highlights=report.highlights,
+        blind_spots=report.blind_spots,
+        action_tips=report.action_tips,
         selected_kist_cards=report.selected_kist_cards,
         transcript=[
             TranscriptEntry(
@@ -215,9 +217,9 @@ async def coach_chat(
         transcript=transcript_str,
         emotion_summary=emotion_summary,
         sel_scores=sel_scores_str,
-        analysis=report.analysis_text,
-        feedback=report.feedback_text,
-        kist_cards="、".join(report.selected_kist_cards),
+        highlights=report.highlights,
+        blind_spots=report.blind_spots,
+        action_tips=report.action_tips or "（尚無行動建議）",
     )
 
     # 組裝訊息列表

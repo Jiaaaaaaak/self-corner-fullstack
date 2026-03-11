@@ -44,9 +44,10 @@ interface FeedbackReport {
   session_uuid: string;
   scenario_title: string | null;
   sel_scores: Record<string, number>;
-  feedback_text: string;
-  analysis_text: string;
-  selected_kist_cards: string[];
+  highlights: string;
+  blind_spots: string;
+  action_tips: string | null;
+  selected_kist_cards?: string[] | null;
   transcript: TranscriptEntry[];
   emotion_logs: EmotionLogEntry[];
   generated_at: string | null;
@@ -104,6 +105,15 @@ export default function Feedback() {
 
   useEffect(() => {
     window.scrollTo(0, 0);
+    setReport(null);
+    setError(null);
+    setLoading(true);
+    setChatHistory([
+      {
+        role: "assistant",
+        content: "老師辛苦了！這是一場不容易的對話。關於剛剛的分析報告，或是針對學生的情況，您有任何想進一步討論的嗎？",
+      },
+    ]);
     if (!sessionUuid) {
       setError("找不到練習 Session，請先進行一次練習");
       setLoading(false);
@@ -112,13 +122,6 @@ export default function Feedback() {
     api.get(`/report/${sessionUuid}/feedback`)
       .then((res) => {
         setReport(res.data);
-        // Seed initial coach message
-        setChatHistory([
-          {
-            role: "assistant",
-            content: "老師辛苦了！這是一場不容易的對話。關於剛剛的分析報告，或是針對學生的情況，您有任何想進一步討論的嗎？",
-          },
-        ]);
       })
       .catch((err) => {
         setError(err.response?.data?.detail ?? "載入報告失敗，請稍後再試");
@@ -319,8 +322,9 @@ export default function Feedback() {
           {/* Right: Tabs (Expert Suggestions + Transcript) */}
           <div className="flex-1 flex flex-col min-w-0">
             <FeedbackTabs
-              feedbackText={report?.feedback_text ?? ""}
-              analysisText={report?.analysis_text ?? ""}
+              highlights={report?.highlights ?? ""}
+              blindSpots={report?.blind_spots ?? ""}
+              actionTips={report?.action_tips ?? ""}
               transcript={report?.transcript ?? []}
               userInput={userInput}
               onUserInputChange={setUserInput}

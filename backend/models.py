@@ -48,6 +48,10 @@ class Scenario(Base):
     # 情境開始時的基準情緒（9 種，0.0–1.0）
     initial_emotions: Mapped[Optional[dict]] = mapped_column(JSON, nullable=True)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
+    short_desc: Mapped[Optional[str]] = mapped_column(String(200), nullable=True)
+    # 短說明，供前端新頁面顯示
+    tags: Mapped[Optional[list]] = mapped_column(JSON, nullable=True)
+    # 情境標籤，適合本情境的個性類型清單
 
     sessions: Mapped[list["Session"]] = relationship("Session", back_populates="scenario")
 
@@ -61,6 +65,10 @@ class StudentPersonality(Base):
     personality_type: Mapped[str] = mapped_column(String(50), nullable=False)
     base_prompt: Mapped[str] = mapped_column(Text, nullable=False)
     speaking_style: Mapped[str] = mapped_column(Text, nullable=False)
+    domain_weights: Mapped[Optional[dict]] = mapped_column(JSON, nullable=True)
+    # 領域重視度 {"學業": 0-5, "情感": 0-5, "人際": 0-5, "規矩": 0-5}
+    personality_tags: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
+    # 個性標籤，例如 "防衛刺蝟型"
 
     sessions: Mapped[list["Session"]] = relationship("Session", back_populates="personality")
 
@@ -214,9 +222,21 @@ class FeedbackReport(Base):
         ForeignKey("sessions.id"), nullable=False, unique=True
     )
     sel_scores: Mapped[dict] = mapped_column(JSON, nullable=False)
-    feedback_text: Mapped[str] = mapped_column(Text, nullable=False)
-    analysis_text: Mapped[str] = mapped_column(Text, nullable=False)
-    selected_kist_cards: Mapped[list] = mapped_column(JSON, nullable=False)
+    highlights: Mapped[str] = mapped_column(Text, nullable=False)       # 對話亮點
+    blind_spots: Mapped[str] = mapped_column(Text, nullable=False)      # 盲點發現
+    action_tips: Mapped[Optional[str]] = mapped_column(Text, nullable=True)  # 行動建議
+    selected_kist_cards: Mapped[Optional[list]] = mapped_column(JSON, nullable=True)
     generated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+
+    # === 初稿（Coach 第一次輸出）===
+    draft_highlights: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    draft_blind_spots: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    draft_action_tips: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    draft_sel_scores: Mapped[Optional[dict]] = mapped_column(JSON, nullable=True)
+
+    # === Critic Agent 輸出 ===
+    critic_passed: Mapped[Optional[bool]] = mapped_column(Boolean, nullable=True)
+    critic_critique: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    critic_revision_instructions: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
 
     session: Mapped["Session"] = relationship("Session", back_populates="feedback_report")
