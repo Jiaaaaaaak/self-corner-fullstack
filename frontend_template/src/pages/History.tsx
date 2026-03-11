@@ -1,29 +1,25 @@
 import { useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import AppLayout from "@/components/AppLayout";
-import { Search, Calendar, ChevronDown, ChevronRight, Filter } from "lucide-react";
-import { Badge } from "@/components/ui/badge";
-
-const historyItems = [
-  { id: 1, date: "03/01", weekday: "週六", emoji: "😤", title: "國中生拒絕交作業", duration: "15:42", rounds: 12, grade: "A+" },
-  { id: 2, date: "02/27", weekday: "週四", emoji: "🥺", title: "考場失利後的自責", duration: "12:08", rounds: 9, grade: "A" },
-  { id: 3, date: "02/25", weekday: "週二", emoji: "👥", title: "分組被落單的窘迫", duration: "18:30", rounds: 14, grade: "B+" },
-  { id: 4, date: "02/20", weekday: "週四", emoji: "🤝", title: "好朋友吵架的糾結", duration: "10:15", rounds: 8, grade: "A+" },
-  { id: 5, date: "02/15", weekday: "週六", emoji: "🌱", title: "面對新環境的焦慮", duration: "14:22", rounds: 11, grade: "B" },
-];
-
-const gradeStyles = (grade: string) => {
-  if (grade.startsWith("A")) return "bg-[#81B29A15] text-[#81B29A] border-[#81B29A30]";
-  return "bg-[#F2CC8F20] text-[#D4A853] border-[#F2CC8F40]";
-};
+import { Search, Calendar, ChevronDown, ChevronRight, Filter, X } from "lucide-react";
+import { historyItems } from "@/lib/collectionData";
 
 export default function History() {
   const navigate = useNavigate();
-  const [searchQuery, setSearchQuery] = useState("");
+  const [searchParams, setSearchParams] = useSearchParams();
+  const scenarioFilter = searchParams.get("scenario") ?? "";
+  const [searchQuery, setSearchQuery] = useState(scenarioFilter);
 
   const filtered = historyItems.filter(
     (item) => item.title.includes(searchQuery) || item.date.includes(searchQuery)
   );
+
+  const isFiltered = scenarioFilter.length > 0;
+
+  const clearFilter = () => {
+    setSearchParams({});
+    setSearchQuery("");
+  };
 
   return (
     <AppLayout>
@@ -43,11 +39,25 @@ export default function History() {
               onChange={(e) => setSearchQuery(e.target.value)}
               className="flex-1 text-sm bg-transparent outline-none placeholder:text-[#A09C94] text-[#3D3831] font-medium"
             />
+            {isFiltered && (
+              <button onClick={clearFilter} className="p-1 rounded-full hover:bg-[#FAF9F6] transition-colors">
+                <X className="w-3.5 h-3.5 text-[#A09C94]" />
+              </button>
+            )}
           </div>
         </div>
 
         {/* Filter row */}
         <div className="flex flex-wrap items-center gap-3">
+          {isFiltered && (
+            <button
+              onClick={clearFilter}
+              className="flex items-center gap-2 px-4 py-2 bg-primary/10 border border-primary/20 rounded-lg text-[13px] font-bold text-primary transition-all shadow-sm"
+            >
+              <X className="w-3.5 h-3.5" />
+              清除篩選：{scenarioFilter}
+            </button>
+          )}
           <button className="flex items-center gap-2 px-4 py-2 bg-white border border-[#E5E2D9] rounded-lg text-[13px] font-bold text-[#706C61] hover:border-primary hover:text-primary transition-all shadow-sm group">
             <Calendar className="w-4 h-4 text-[#A09C94] group-hover:text-primary" />
             最近 30 天
@@ -88,15 +98,12 @@ export default function History() {
                 <h3 className="font-heading text-lg font-bold text-[#3D3831] truncate group-hover:text-primary transition-colors">
                   {item.title}
                 </h3>
-                <p className="text-[13px] text-[#706C61] font-medium mt-1">
-                  練習時長 <span className="text-[#3D3831]">{item.duration}</span> · 回合數 <span className="text-[#3D3831]">{item.rounds}</span>
-                </p>
+                <div className="flex items-center gap-2 mt-1">
+                  <p className="text-[13px] text-[#706C61] font-medium">
+                    練習時長 <span className="text-[#3D3831]">{item.duration}</span> · 回合數 <span className="text-[#3D3831]">{item.rounds}</span>
+                  </p>
+                </div>
               </div>
-
-              {/* Score badge */}
-              <Badge className={`px-3 py-1 font-heading text-xs font-bold rounded-lg border shadow-sm ${gradeStyles(item.grade)}`}>
-                {item.grade}
-              </Badge>
 
               {/* Arrow */}
               <div className="w-8 h-8 rounded-full flex items-center justify-center bg-transparent group-hover:bg-primary/10 transition-colors">
@@ -114,6 +121,14 @@ export default function History() {
                 <p className="font-heading text-lg font-bold text-[#3D3831]">找不到相關紀錄</p>
                 <p className="text-sm text-[#706C61] font-medium">換個關鍵字搜尋看看吧！</p>
               </div>
+              {isFiltered && (
+                <button
+                  onClick={clearFilter}
+                  className="mt-2 px-4 py-2 bg-primary text-white text-sm font-bold rounded-lg hover:bg-primary/90 transition-all"
+                >
+                  清除篩選
+                </button>
+              )}
             </div>
           )}
         </div>

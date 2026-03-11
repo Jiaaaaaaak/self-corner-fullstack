@@ -3,11 +3,9 @@ import { useNavigate, useLocation } from "react-router-dom";
 import AppLayout from "@/components/AppLayout";
 import classroomBg from "@/assets/classroom-background.png";
 import {
-  Dices,
   HelpCircle,
   AlertCircle,
   Play,
-  RotateCcw,
   Mic,
 } from "lucide-react";
 import { 
@@ -15,27 +13,14 @@ import {
   DialogContent, 
 } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
-import ScenarioCard from "@/components/chatroom/ScenarioCard";
 import ScenarioDetail from "@/components/chatroom/ScenarioDetail";
-import RandomConfirm from "@/components/chatroom/RandomConfirm";
 import ChatPanel from "@/components/chatroom/ChatPanel";
+import SkillTreeMap from "@/components/chatroom/SkillTreeMap";
 
-const allScenarios = [
-  { id: 1, title: "考場失利後的自責", tag: "自我覺察", emoji: "📝", description: "學生在一次重要考試中表現不佳，感到極度自責和沮喪。他開始質疑自己的能力，甚至不想再上學。" },
-  { id: 2, title: "分組被落單的窘迫", tag: "社會覺察", emoji: "👥", description: "班上分組活動時，有一位學生總是最後一個被選或直接被遺漏。他表面上裝作無所謂，但內心其實很受傷。" },
-  { id: 3, title: "被當眾誤解的憤怒", tag: "自我管理", emoji: "😤", description: "學生在課堂上被同學誤解並當眾指責，他非常憤怒，差點失控動手。你需要幫助他冷靜下來。" },
-  { id: 4, title: "好朋友吵架的糾結", tag: "人際技巧", emoji: "🤝", description: "兩個好朋友因為一件小事吵架了，其中一位來找你傾訴。他既想和好，又覺得委屈。引導他學習溝通技巧。" },
-  { id: 5, title: "面對新環境的焦慮", tag: "自我覺察", emoji: "🌱", description: "學生剛轉學到新班級，對陌生的環境和同學感到極度焦慮。他不敢主動交朋友，午餐時間總是一個人。" },
-  { id: 6, title: "承認作弊後的羞愧", tag: "負責決策", emoji: "💭", description: "學生在考試中作弊被發現，他感到非常羞愧，不知道如何面對老師和同學。引導他理解誠實的重要性。" },
-];
+import SoulCards from "@/components/chatroom/SoulCards";
+import StudentProfileSelect, { type StudentProfile, PERSONALITY_TRAITS, GRADE_LEVELS } from "@/components/chatroom/StudentProfileSelect";
 
-const DISPLAY_COUNT = 6;
-const TAGS = ["全部", "自我覺察", "自我管理", "社會覺察", "人際技巧", "負責決策"];
-
-function pickRandomScenarios(pool: typeof allScenarios, count: number) {
-  const shuffled = [...pool].sort(() => Math.random() - 0.5);
-  return shuffled.slice(0, count);
-}
+import { allScenarios, COMPETENCY_GROUPS } from "@/lib/collectionData";
 
 export default function Chatroom() {
   const navigate = useNavigate();
@@ -47,13 +32,11 @@ export default function Chatroom() {
   const [studentEmotion, setStudentEmotion] = useState<"neutral" | "angry" | "sad" | "thinking">("neutral");
   const [selectedScenarioId, setSelectedScenarioId] = useState<number | null>(null);
   const [activeScenario, setActiveScenario] = useState<(typeof allScenarios)[0] | null>(null);
-  const [activeTag, setActiveTag] = useState("全部");
-  const [showRandomConfirm, setShowRandomConfirm] = useState(false);
+  const [pendingScenario, setPendingScenario] = useState<(typeof allScenarios)[0] | null>(null);
+  const [studentProfile, setStudentProfile] = useState<StudentProfile | null>(null);
   const [helpOpen, setHelpOpen] = useState(false);
   const [voicePromptOpen, setVoicePromptOpen] = useState(false);
-  const [displayedScenarios, setDisplayedScenarios] = useState(() =>
-    pickRandomScenarios(allScenarios, DISPLAY_COUNT)
-  );
+  const [soulCardsOpen, setSoulCardsOpen] = useState(false);
 
   // Timer Effect
   useEffect(() => {
@@ -87,16 +70,23 @@ export default function Chatroom() {
   };
 
   const handleCardClick = (id: number) => setSelectedScenarioId(id);
-  const handleRandomClick = () => setShowRandomConfirm(true);
-  const handleRefresh = () => setDisplayedScenarios(pickRandomScenarios(allScenarios, DISPLAY_COUNT));
 
   const handleStart = (scenario?: (typeof allScenarios)[0]) => {
-    const chosen = scenario || allScenarios.find(s => s.id === selectedScenarioId) || pickRandomScenarios(allScenarios, 1)[0];
-    setActiveScenario(chosen);
+    const chosen = scenario || allScenarios.find(s => s.id === selectedScenarioId);
+    if (!chosen) return;
+    setPendingScenario(chosen);
     setSelectedScenarioId(null);
-    setShowRandomConfirm(false);
-    // Show voice prompt before starting
+  };
+
+  const handleProfileConfirm = (profile: StudentProfile) => {
+    setStudentProfile(profile);
+    setActiveScenario(pendingScenario);
+    setPendingScenario(null);
     setVoicePromptOpen(true);
+  };
+
+  const handleProfileBack = () => {
+    setPendingScenario(null);
   };
 
   const [voiceEnabled, setVoiceEnabled] = useState(false);
@@ -111,7 +101,6 @@ export default function Chatroom() {
 
   const handleCloseDetail = () => {
     setSelectedScenarioId(null);
-    setShowRandomConfirm(false);
   };
 
   const handleTogglePause = () => setIsPaused(!isPaused);
@@ -158,10 +147,10 @@ export default function Chatroom() {
              ) : (
                <>
                  <Badge variant="outline" className="font-heading text-[10px] font-bold tracking-widest uppercase border-primary/30 text-primary">
-                   Scenario Selection
+                   Growth Map
                  </Badge>
                  <h2 className="text-sm font-bold text-[#3D3831] truncate max-w-[200px] md:max-w-none">
-                   探索練習情境
+                   對話成長練習
                  </h2>
                </>
              )}
@@ -205,11 +194,17 @@ export default function Chatroom() {
               <div className="w-14 h-14 rounded-full bg-white/90 backdrop-blur-sm border-2 border-white shadow-xl flex items-center justify-center text-3xl">
                 {renderStudentAvatar()}
               </div>
-              <div className="flex flex-col">
+              <div className="flex flex-col gap-0.5">
                 <span className="font-heading text-base font-bold text-white drop-shadow-md">
-                  小明（國二）
+                  {studentProfile ? `${GRADE_LEVELS.find(g => g.id === studentProfile.grade)?.label ?? ""}學生` : "小明（國二）"}
                 </span>
-                <div className="flex items-center gap-1.5">
+                {studentProfile && (
+                  <span className="text-[11px] font-bold text-white/90 drop-shadow-sm bg-white/20 backdrop-blur-sm px-2 py-0.5 rounded-full w-fit">
+                    {PERSONALITY_TRAITS.find(p => p.id === studentProfile.personality)?.emoji}{" "}
+                    {PERSONALITY_TRAITS.find(p => p.id === studentProfile.personality)?.label}
+                  </span>
+                )}
+                <div className="flex items-center gap-1.5 mt-0.5">
                   <div className={`w-1.5 h-1.5 rounded-full ${isPaused ? "bg-[#A09C94]" : "bg-primary animate-pulse"}`} />
                   <span className="text-xs font-medium text-white/80 drop-shadow-sm">
                     {emotionLabel()}
@@ -243,78 +238,40 @@ export default function Chatroom() {
             </div>
           )}
 
-          {/* 1. SCENARIO SELECTION VIEW */}
-          {!isStarted && !selectedScenarioId && !showRandomConfirm && (
-            <div className="h-full overflow-y-auto px-6 py-10 md:px-12 animate-in fade-in duration-500 bg-[#FAF9F6]">
-               <div className="max-w-5xl mx-auto flex flex-col gap-10">
-                 <div className="flex flex-col gap-6">
-                    <div className="flex items-center justify-between">
-                      <div className="flex flex-col gap-1">
-                        <span className="font-heading text-[10px] font-bold tracking-[0.2em] text-primary uppercase">Scenario Pool</span>
-                        <h3 className="font-heading text-2xl font-bold text-[#3D3831]">選擇一個練習情境</h3>
-                      </div>
-                      <button 
-                        onClick={handleRefresh}
-                        className="flex items-center gap-2 px-4 py-2 border border-[#E5E2D9] rounded-lg text-sm font-bold text-[#706C61] hover:bg-white hover:text-primary transition-all group shadow-sm"
-                      >
-                        <RotateCcw className="w-4 h-4 group-hover:rotate-180 transition-transform duration-500" />
-                        換一批
-                      </button>
-                    </div>
-
-                    <div className="flex flex-wrap gap-2">
-                      {TAGS.map(tag => (
-                        <button
-                          key={tag}
-                          onClick={() => setActiveTag(tag)}
-                          className={`px-4 py-1.5 rounded-full text-[12px] font-bold tracking-wide transition-all ${
-                            activeTag === tag 
-                            ? "bg-[#3D3831] text-white shadow-md" 
-                            : "bg-white border border-[#E5E2D9] text-[#706C61] hover:border-[#3D3831]"
-                          }`}
-                        >
-                          {tag}
-                        </button>
-                      ))}
-                    </div>
-                 </div>
-
-                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                    {displayedScenarios.map((scenario) => (
-                      <ScenarioCard key={scenario.id} scenario={scenario} onClick={handleCardClick} />
-                    ))}
-                    <button
-                      onClick={handleRandomClick}
-                      className="group flex flex-col items-center justify-center gap-4 p-8 border-2 border-dashed border-primary/30 rounded-2xl bg-white hover:border-primary hover:bg-primary/5 hover:shadow-xl transition-all duration-300"
-                    >
-                      <div className="w-16 h-16 bg-primary/10 rounded-full flex items-center justify-center group-hover:scale-110 transition-transform">
-                        <Dices className="w-8 h-8 text-primary" />
-                      </div>
-                      <div className="flex flex-col gap-1">
-                        <span className="font-heading text-lg font-bold text-[#3D3831]">隨機挑戰</span>
-                        <p className="text-xs text-[#706C61] font-medium leading-relaxed">
-                          由系統隨機挑選一個<br/>未知情境進行練習
-                        </p>
-                      </div>
-                    </button>
-                 </div>
-               </div>
-            </div>
-          )}
-
-          {/* 2. DETAIL / CONFIRM VIEWS */}
-          {!isStarted && selectedScenarioId && (
-            <ScenarioDetail 
-              scenario={allScenarios.find(s => s.id === selectedScenarioId)!} 
-              onClose={handleCloseDetail} 
-              onStart={handleStart} 
+          {/* 1. SKILL TREE MAP / OVERVIEW VIEW */}
+          {!isStarted && !pendingScenario && !selectedScenarioId && (
+            <SkillTreeMap
+              groups={COMPETENCY_GROUPS}
+              onSelectScenario={handleCardClick}
+              onOpenSoulCards={() => setSoulCardsOpen(true)}
             />
           )}
-          {!isStarted && showRandomConfirm && (
-            <RandomConfirm onClose={handleCloseDetail} onStart={() => handleStart()} />
+
+          {/* 2. DETAIL VIEW */}
+          {!isStarted && selectedScenarioId && (() => {
+            const found = allScenarios.find(s => s.id === selectedScenarioId);
+            if (!found) {
+              // ID not in allScenarios (e.g. overview mock data) — reset selection
+              return null;
+            }
+            return (
+              <ScenarioDetail 
+                scenario={found} 
+                onClose={handleCloseDetail} 
+                onStart={handleStart} 
+              />
+            );
+          })()}
+
+          {/* 2.5 STUDENT PROFILE SELECTION */}
+          {!isStarted && pendingScenario && (
+            <StudentProfileSelect
+              onConfirm={handleProfileConfirm}
+              onBack={handleProfileBack}
+            />
           )}
 
-          {/* 3. ACTIVE SESSION VIEW - just ChatPanel over background */}
+          {/* 3. ACTIVE SESSION VIEW */}
           {isStarted && (
             <ChatPanel
               isPaused={isPaused}
@@ -322,10 +279,29 @@ export default function Chatroom() {
               onEnd={handleEnd}
               onEmotionChange={(emo) => setStudentEmotion(emo as any)}
               voiceEnabled={voiceEnabled}
+              personalityId={studentProfile?.personality}
+              gradeId={studentProfile?.grade}
             />
           )}
         </div>
       </div>
+
+      {/* Soul Cards Overlay */}
+      <SoulCards
+        scenarios={allScenarios}
+        open={soulCardsOpen}
+        onClose={() => setSoulCardsOpen(false)}
+      onStart={(scenario: any) => {
+          setSoulCardsOpen(false);
+          // Skip profile select & voice prompt — go directly into chat
+          setActiveScenario(scenario);
+          setStudentProfile({ personality: "introverted", grade: "junior-2" });
+          setVoiceEnabled(false);
+          setIsStarted(true);
+          setIsPaused(false);
+          setElapsedSeconds(0);
+        }}
+      />
 
       {/* Voice Prompt Dialog */}
       <Dialog open={voicePromptOpen} onOpenChange={setVoicePromptOpen}>
@@ -374,7 +350,7 @@ export default function Chatroom() {
           <div className="p-8 space-y-6">
             <div className="space-y-4">
                {[
-                 { id: 1, text: "選擇情境：從情境池中挑選一個感興趣或想精進的對話挑戰。" },
+                 { id: 1, text: "選擇情境：從成長地圖中挑選一個感興趣或想精進的對話挑戰，或抽取隨機牌卡。" },
                  { id: 2, text: "模擬互動：使用語音或文字，像平常對話一樣與 AI 學生互動。" },
                  { id: 3, text: "覺察情緒：觀察學生的表情與情緒標籤，調整您的溝通姿態。" },
                  { id: 4, text: "暫停反思：若感到壓力或不知如何回應，隨時按暫停深呼吸。" },

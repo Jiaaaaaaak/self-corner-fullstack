@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect } from "react";
-import { Mic, MicOff, Send, Pause, Play, SquareSquare, Loader2, ClipboardCheck } from "lucide-react";
+import { Mic, MicOff, Send, Pause, Play, Loader2, ClipboardCheck } from "lucide-react";
+import { getPersonalityConfig, getTextForGrade } from "@/lib/studentPersonality";
 
 interface ChatMessage {
   role: "teacher" | "student";
@@ -12,11 +13,21 @@ interface ChatPanelProps {
   onEnd: () => void;
   onEmotionChange?: (emotion: string) => void;
   voiceEnabled?: boolean;
+  personalityId?: string;
+  gradeId?: string;
 }
 
-export default function ChatPanel({ isPaused, onTogglePause, onEnd, onEmotionChange, voiceEnabled = false }: ChatPanelProps) {
+export default function ChatPanel({ isPaused, onTogglePause, onEnd, onEmotionChange, voiceEnabled = false, personalityId, gradeId }: ChatPanelProps) {
+  const config = personalityId ? getPersonalityConfig(personalityId) : null;
+  const grade = gradeId ?? "upper-elementary";
+  const responseIndexRef = useRef(0);
+
+  const initialMessage = config
+    ? getTextForGrade(config.initialMessage, grade)
+    : "老師......我有點不想說，但我今天心情真的很差。";
+
   const [messages, setMessages] = useState<ChatMessage[]>([
-    { role: "student", content: "老師......我有點不想說，但我今天心情真的很差。" },
+    { role: "student", content: initialMessage },
   ]);
   const [inputText, setInputText] = useState("");
   const [isRecording, setIsRecording] = useState(voiceEnabled);
@@ -38,11 +49,26 @@ export default function ChatPanel({ isPaused, onTogglePause, onEnd, onEmotionCha
 
     setTimeout(() => {
       setIsThinking(false);
+
+      let replyContent: string;
+      let replyEmotion: string;
+
+      if (config) {
+        const idx = responseIndexRef.current % config.responses.length;
+        const response = config.responses[idx];
+        replyContent = getTextForGrade(response.content, grade);
+        replyEmotion = response.emotion;
+        responseIndexRef.current += 1;
+      } else {
+        replyContent = "我覺得大家都針對我，反正我做什麼都不對！";
+        replyEmotion = "angry";
+      }
+
       setMessages((prev) => [
         ...prev,
-        { role: "student", content: "我覺得大家都針對我，反正我做什麼都不對！" },
+        { role: "student", content: replyContent },
       ]);
-      if (onEmotionChange) onEmotionChange("angry");
+      if (onEmotionChange) onEmotionChange(replyEmotion);
     }, 2500);
   };
 
@@ -57,8 +83,6 @@ export default function ChatPanel({ isPaused, onTogglePause, onEnd, onEmotionCha
     setIsRecording(!isRecording);
     if (!isRecording && onEmotionChange) onEmotionChange("neutral");
   };
-
-  // Show all messages, scrollable
 
   return (
     <div className="absolute bottom-0 left-0 right-0 flex flex-col z-30">
@@ -111,7 +135,6 @@ export default function ChatPanel({ isPaused, onTogglePause, onEnd, onEmotionCha
       {/* Input bar */}
       <div className="px-8 py-4">
         <div className="max-w-4xl mx-auto flex items-center gap-3">
-          {/* Text input - takes most space */}
           <div className="flex-1 flex items-center h-11 px-4 bg-white/50 backdrop-blur-md border border-white/30 rounded-full shadow-md focus-within:ring-2 focus-within:ring-primary/20 focus-within:border-primary/30 transition-all">
             <input
               value={inputText}
@@ -123,9 +146,7 @@ export default function ChatPanel({ isPaused, onTogglePause, onEnd, onEmotionCha
             />
           </div>
 
-          {/* Right side controls */}
           <div className="flex items-center gap-2">
-            {/* Mic button */}
             <button
               onClick={toggleRecording}
               disabled={isPaused}
@@ -137,7 +158,6 @@ export default function ChatPanel({ isPaused, onTogglePause, onEnd, onEmotionCha
             >
               {isRecording ? (
                 <>
-                  {/* Recording pulse rings */}
                   <span className="absolute inset-0 rounded-full bg-destructive/40 animate-ping" />
                   <span className="absolute inset-[-4px] rounded-full border-2 border-destructive/30 animate-pulse" />
                   <Mic className="w-5 h-5 relative z-10" />
@@ -147,7 +167,6 @@ export default function ChatPanel({ isPaused, onTogglePause, onEnd, onEmotionCha
               )}
             </button>
 
-            {/* Send button */}
             <button
               onClick={handleSend}
               disabled={!inputText.trim() || isPaused}
@@ -156,7 +175,6 @@ export default function ChatPanel({ isPaused, onTogglePause, onEnd, onEmotionCha
               <Send className="w-5 h-5" />
             </button>
 
-            {/* Pause button */}
             <button
               onClick={onTogglePause}
               className="w-12 h-12 rounded-full flex items-center justify-center bg-white/80 backdrop-blur-sm border border-white/50 text-[#706C61] hover:text-primary transition-all shadow-lg hover:scale-105 active:scale-95"
@@ -165,7 +183,6 @@ export default function ChatPanel({ isPaused, onTogglePause, onEnd, onEmotionCha
               {isPaused ? <Play className="w-5 h-5 fill-current" /> : <Pause className="w-5 h-5" />}
             </button>
 
-            {/* End & Analyze button */}
             <button
               onClick={onEnd}
               className="h-12 px-5 rounded-full flex items-center justify-center gap-2 bg-white/80 backdrop-blur-sm border border-white/50 text-[#706C61] hover:text-primary hover:border-primary/30 transition-all shadow-lg hover:scale-105 active:scale-95"
