@@ -40,6 +40,12 @@ MIGRATIONS = [
     )""",
     # 驗證信箱
     "ALTER TABLE users ADD COLUMN IF NOT EXISTS is_email_verified BOOLEAN NOT NULL DEFAULT FALSE",
+    # Google OAuth 欄位
+    "ALTER TABLE users ADD COLUMN IF NOT EXISTS google_id VARCHAR(200)",
+    "ALTER TABLE users ADD COLUMN IF NOT EXISTS auth_provider VARCHAR(20) NOT NULL DEFAULT 'local'",
+    "ALTER TABLE users ADD COLUMN IF NOT EXISTS is_active BOOLEAN NOT NULL DEFAULT TRUE",
+    # Google 用戶沒有密碼，hashed_password 改為可 null
+    "ALTER TABLE users ALTER COLUMN hashed_password DROP NOT NULL",
 ]
 
 
