@@ -1,7 +1,7 @@
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Textarea } from "@/components/ui/textarea";
-import { Lightbulb, MessageSquare, MessageCircle, Sparkles, ArrowRight, Loader2 } from "lucide-react";
+import { CheckSquare, Search, Target, Lightbulb, MessageCircle, Sparkles, ArrowRight, Loader2 } from "lucide-react";
 
 interface TranscriptEntry {
   speaker: string;
@@ -15,8 +15,9 @@ interface ChatMessage {
 }
 
 interface FeedbackTabsProps {
-  feedbackText: string;
-  analysisText: string;
+  highlights: string;
+  blindSpots: string;
+  actionTips: string;
   transcript: TranscriptEntry[];
   userInput: string;
   onUserInputChange: (v: string) => void;
@@ -26,8 +27,9 @@ interface FeedbackTabsProps {
 }
 
 export default function FeedbackTabs({
-  feedbackText,
-  analysisText,
+  highlights,
+  blindSpots,
+  actionTips,
   transcript,
   userInput,
   onUserInputChange,
@@ -58,25 +60,31 @@ export default function FeedbackTabs({
       <TabsContent value="expert" className="flex flex-col gap-6 flex-1 min-h-0 mt-4">
         {/* Feedback text */}
         <div className="bg-white border border-[#E5E2D9] rounded-2xl shadow-sm p-8 flex flex-col gap-6">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 bg-primary/10 rounded-xl flex items-center justify-center">
-              <Lightbulb className="w-5 h-5 text-primary" />
-            </div>
-            <h2 className="font-heading text-lg font-bold text-[#3D3831]">核心優化建議</h2>
-          </div>
           <ScrollArea className="h-[260px] pr-4">
-            <div className="space-y-4">
-              <div className="p-5 bg-[#FAF9F6] border border-[#E5E2D9] rounded-xl">
-                <p className="text-sm text-[#706C61] font-medium leading-relaxed whitespace-pre-line">
-                  {feedbackText}
-                </p>
+            <div className="space-y-6">
+              {/* 對話亮點 */}
+              <div className="space-y-3">
+                <h3 className="flex items-center gap-2 font-heading text-base font-bold text-secondary">
+                  <CheckSquare className="w-4 h-4" /> 對話亮點
+                </h3>
+                <p className="text-sm text-[#706C61] leading-relaxed whitespace-pre-line">{highlights}</p>
               </div>
-              {analysisText && (
-                <div className="bg-white border-l-4 border-primary p-4 rounded-r-xl shadow-sm">
-                  <MessageSquare className="w-4 h-4 text-primary mb-2 opacity-50" />
-                  <p className="text-[13px] font-bold text-[#3D3831] leading-relaxed italic">
-                    {analysisText}
-                  </p>
+
+              {/* 盲點發現 */}
+              <div className="space-y-3">
+                <h3 className="flex items-center gap-2 font-heading text-base font-bold text-primary">
+                  <Search className="w-4 h-4" /> 盲點發現
+                </h3>
+                <p className="text-sm text-[#706C61] leading-relaxed whitespace-pre-line">{blindSpots}</p>
+              </div>
+
+              {/* 行動建議 */}
+              {actionTips && (
+                <div className="space-y-3">
+                  <h3 className="flex items-center gap-2 font-heading text-base font-bold" style={{ color: "#81B29A" }}>
+                    <Target className="w-4 h-4" /> 行動建議
+                  </h3>
+                  <p className="text-sm text-[#706C61] leading-relaxed whitespace-pre-line">{actionTips}</p>
                 </div>
               )}
             </div>

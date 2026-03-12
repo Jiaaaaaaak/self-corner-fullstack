@@ -4,7 +4,7 @@ import { Label } from "@/components/ui/label";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { toast } from "@/hooks/use-toast";
 import AppLayout from "@/components/AppLayout";
-import { Activity, Pencil, Save, X, User as UserIcon, Calendar, Trophy, School, ChevronRight } from "lucide-react";
+import { Activity, Pencil, Save, X, User as UserIcon, Calendar, School, ChevronRight, Shield } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 
@@ -34,7 +34,7 @@ export default function Info() {
 
   return (
     <AppLayout>
-      <div className="p-8 md:p-12 max-w-5xl mx-auto flex flex-col gap-10 min-h-full animate-in fade-in duration-500">
+      <div className="p-6 md:p-8 max-w-5xl mx-auto flex flex-col gap-6 min-h-full animate-in fade-in duration-500">
         {/* Header */}
         <div className="flex items-center justify-between pl-12 lg:pl-0">
           <div className="flex flex-col gap-1">
@@ -46,18 +46,18 @@ export default function Info() {
           </Badge>
         </div>
 
-        <div className="grid md:grid-cols-3 gap-8">
+        <div className="grid md:grid-cols-3 gap-6">
           {/* Sidebar Stats */}
           <div className="flex flex-col gap-6">
-            {/* Stats Card */}
-            <div className="bg-[#3D3831] rounded-2xl shadow-xl p-8 flex flex-col items-center text-center gap-4 relative overflow-hidden">
+            {/* Stats Card - stretch to fill height */}
+            <div className="bg-[#3D3831] rounded-2xl shadow-xl p-6 flex flex-col items-center text-center gap-3 relative overflow-hidden flex-1">
               <div className="absolute top-0 left-0 w-full h-full chalk-dots opacity-10 pointer-events-none" />
-              <div className="w-16 h-16 rounded-2xl bg-primary/20 flex items-center justify-center text-primary mb-2 relative z-10">
-                <Activity className="w-8 h-8" />
+              <div className="w-12 h-12 rounded-2xl bg-primary/20 flex items-center justify-center text-primary mb-1 relative z-10">
+                <Activity className="w-6 h-6" />
               </div>
               <div className="relative z-10">
                 <p className="text-xs text-white/50 font-bold uppercase tracking-widest mb-1">Total Sessions</p>
-                <p className="font-heading text-6xl font-bold text-white tracking-tighter">24</p>
+                <p className="font-heading text-5xl font-bold text-white tracking-tighter">24</p>
               </div>
               <div className="w-full h-px bg-white/10 my-2 relative z-10" />
               <div className="flex flex-col gap-1 relative z-10">
@@ -65,28 +65,16 @@ export default function Info() {
                 <p className="text-[11px] text-white/40 font-medium">您已經超過了 85% 的使用者</p>
               </div>
             </div>
-
-            {/* Achievement Card */}
-            <div className="bg-white border border-[#E5E2D9] rounded-2xl p-6 shadow-sm flex flex-col gap-4">
-               <h3 className="font-heading text-xs font-bold text-[#3D3831] uppercase tracking-widest border-b border-[#E5E2D9] pb-3">成就勳章</h3>
-               <div className="flex flex-wrap gap-3">
-                  {[1, 2, 3].map(i => (
-                    <div key={i} className="w-10 h-10 rounded-full bg-[#FAF9F6] border border-[#E5E2D9] flex items-center justify-center group hover:border-primary transition-colors cursor-help" title="達成 10 次連續 A+">
-                       <Trophy className="w-5 h-5 text-[#A09C94] group-hover:text-primary transition-colors" />
-                    </div>
-                  ))}
-               </div>
-            </div>
           </div>
 
           {/* Main Profile Form */}
-          <div className="md:col-span-2 flex flex-col gap-6">
+          <div className="md:col-span-2 flex flex-col gap-4">
             <div className="bg-white border border-[#E5E2D9] rounded-2xl shadow-sm overflow-hidden">
               {/* Profile Top Banner */}
-              <div className="h-24 bg-[#FAF9F6] border-b border-[#E5E2D9] relative">
-                 <div className="absolute -bottom-12 left-8">
+              <div className="h-20 bg-[#FAF9F6] border-b border-[#E5E2D9] relative">
+                 <div className="absolute -bottom-10 left-8">
                     <div className="relative group">
-                       <Avatar className="h-24 w-24 border-4 border-white shadow-xl bg-white">
+                       <Avatar className="h-20 w-20 border-4 border-white shadow-xl bg-white">
                          <AvatarImage src={user.avatar || undefined} />
                          <AvatarFallback className="bg-primary text-white text-2xl font-heading font-bold">
                            {user.name.charAt(0)}
@@ -122,8 +110,8 @@ export default function Info() {
               </div>
 
               {/* Form Content */}
-              <div className="pt-16 pb-10 px-10">
-                <div className="mb-8">
+              <div className="pt-14 pb-6 px-8">
+                <div className="mb-5">
                    <h2 className="font-heading text-xl font-bold text-[#3D3831]">{user.name}</h2>
                    <p className="text-sm text-[#706C61] font-medium flex items-center gap-2 mt-1">
                       <Calendar className="w-3.5 h-3.5" />
@@ -131,7 +119,7 @@ export default function Info() {
                    </p>
                 </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-8">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
                   {/* Field Name */}
                   <div className="flex flex-col gap-2">
                     <Label className="font-heading text-[10px] font-bold text-[#A09C94] uppercase tracking-[0.15em]">顯示姓名</Label>
@@ -182,10 +170,10 @@ export default function Info() {
             </div>
 
             {/* Security Section Placeholder */}
-            <div className="bg-white border border-[#E5E2D9] rounded-2xl p-8 shadow-sm flex items-center justify-between group cursor-pointer hover:border-primary/30 transition-all">
+            <div className="bg-white border border-[#E5E2D9] rounded-2xl p-6 shadow-sm flex items-center justify-between group cursor-pointer hover:border-primary/30 transition-all">
                <div className="flex items-center gap-4">
                   <div className="w-12 h-12 bg-[#FAF9F6] rounded-xl flex items-center justify-center">
-                     <Trophy className="w-6 h-6 text-[#A09C94]" />
+                     <Shield className="w-6 h-6 text-[#A09C94]" />
                   </div>
                   <div>
                      <h3 className="font-heading text-[15px] font-bold text-[#3D3831]">帳號安全設定</h3>

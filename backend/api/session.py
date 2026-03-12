@@ -16,13 +16,18 @@ from database import get_db
 from services.db_manager import DBManager
 from core.session_manager import SessionManager
 from core.auth_module import decode_access_token
-from agents.prompts import COACH_PROMPT
+from agents.prompts import COACH_PROMPT, CRITIC_PROMPT, COACH_REVISION_PROMPT
 
 router = APIRouter(prefix="/session", tags=["Session"])
 
 coach_llm = ChatOpenAI(
     model=os.getenv("COACH_MODEL", "gpt-4o"),
     temperature=0.2,
+)
+
+critic_llm = ChatOpenAI(
+    model=os.getenv("COACH_MODEL", "gpt-4o"),
+    temperature=0.1,
 )
 
 
@@ -47,8 +52,6 @@ async def get_current_user_id(
 
 class SessionCreateRequest(BaseModel):
     scenario_id: int
-    personality_id: Optional[int] = None
-    age_group: Optional[str] = None
     title: Optional[str] = None
 
 
@@ -58,7 +61,6 @@ class SessionResponse(BaseModel):
     livekit_room_name: str
     scenario_id: Optional[int]
     personality_id: Optional[int]
-    age_group: Optional[str]
     student_name: Optional[str]
     is_active: bool
     started_at: str
@@ -81,14 +83,8 @@ async def create_session(
     if not scenario:
         raise HTTPException(status_code=404, detail="情境不存在")
 
-    # 取得或隨機選取學生個性
-    if body.personality_id:
-        personality = await db_manager.get_personality_by_id(body.personality_id)
-        if not personality:
-            raise HTTPException(status_code=404, detail="學生個性不存在")
-    else:
-        personality = await db_manager.get_random_personality()
-    
+    # 隨機選取學生個性
+    personality = await db_manager.get_random_personality()
     personality_id = personality.id if personality else None
 
     # 建立 LiveKit 房間名稱
@@ -99,7 +95,6 @@ async def create_session(
         user_id=user_id,
         scenario_id=body.scenario_id,
         personality_id=personality_id,
-        age_group=body.age_group,
         title=body.title or scenario.title,
         livekit_room_name=livekit_room_name,
     )
@@ -110,7 +105,6 @@ async def create_session(
         livekit_room_name=session_data["livekit_room_name"],
         scenario_id=session_data["scenario_id"],
         personality_id=session_data["personality_id"],
-        age_group=session_data["age_group"],
         student_name=personality.name if personality else None,
         is_active=session_data["is_active"],
         started_at=session_data["started_at"].isoformat() + "+00:00",
@@ -152,7 +146,7 @@ async def end_session(
         for t in transcripts
     )
 
-    # 4. 呼叫教練 LLM
+    # 4. 呼叫教練 LLM（生成初稿）
     prompt = COACH_PROMPT.format(conversation_history=conversation_history)
     try:
         response = await coach_llm.ainvoke(prompt)
@@ -167,14 +161,71 @@ async def end_session(
         print(f"[Coach LLM Error] Raw content: {getattr(response, 'content', 'N/A')[:500]}")
         return {"status": "ended", "report_ready": False, "message": "報告生成失敗"}
 
-    # 5. 儲存 FeedbackReport
-    await db_manager.create_feedback_report(
-        session_id=session.id,
-        sel_scores=report_data.get("sel_scores", {}),
-        feedback_text=report_data.get("feedback", ""),
-        analysis_text=report_data.get("analysis", ""),
-        selected_kist_cards=report_data.get("selected_kist_cards", []),
-    )
+    draft_data = report_data.copy()
+    critic_passed_val = None
+    critic_critique_val = None
+    critic_revision_val = None
+
+    # 5. Critic Agent 審核
+    try:
+        critic_prompt = CRITIC_PROMPT.format(
+            conversation_history=conversation_history,
+            draft_highlights=draft_data.get("highlights", ""),
+            draft_blind_spots=draft_data.get("blind_spots", ""),
+            draft_action_tips=draft_data.get("action_tips", ""),
+            draft_sel_scores=json.dumps(draft_data.get("sel_scores", {}), ensure_ascii=False),
+        )
+        critic_response = await critic_llm.ainvoke(critic_prompt)
+        critic_raw = critic_response.content.strip()
+        critic_raw = re.sub(r"^```(?:json)?\s*\n?", "", critic_raw)
+        critic_raw = re.sub(r"\n?```\s*$", "", critic_raw).strip()
+        critic_data = json.loads(critic_raw)
+
+        critic_passed_val = critic_data.get("passed", True)
+        critic_critique_val = critic_data.get("critique", "")
+        critic_revision_val = critic_data.get("revision_instructions", "")
+        print(f"[Critic Agent] passed={critic_passed_val}")
+
+        # 6. 若不通過 → Coach 修正
+        if not critic_passed_val:
+            revision_prompt = COACH_REVISION_PROMPT.format(
+                conversation_history=conversation_history,
+                draft_highlights=draft_data.get("highlights", ""),
+                draft_blind_spots=draft_data.get("blind_spots", ""),
+                draft_action_tips=draft_data.get("action_tips", ""),
+                draft_sel_scores=json.dumps(draft_data.get("sel_scores", {}), ensure_ascii=False),
+                critique=critic_critique_val,
+                revision_instructions=critic_revision_val,
+            )
+            revision_response = await coach_llm.ainvoke(revision_prompt)
+            revision_raw = revision_response.content.strip()
+            revision_raw = re.sub(r"^```(?:json)?\s*\n?", "", revision_raw)
+            revision_raw = re.sub(r"\n?```\s*$", "", revision_raw).strip()
+            report_data = json.loads(revision_raw)
+            print("[Coach Revision] applied.")
+
+    except Exception as e:
+        print(f"[Critic Agent Error] {e} — fallback 使用初稿")
+
+    # 7. 儲存 FeedbackReport（初稿 + Critic 輸出 + 最終版）
+    try:
+        await db_manager.create_feedback_report(
+            session_id=session.id,
+            sel_scores=report_data.get("sel_scores", {}),
+            highlights=report_data.get("highlights", ""),
+            blind_spots=report_data.get("blind_spots", ""),
+            action_tips=report_data.get("action_tips"),
+            draft_highlights=draft_data.get("highlights"),
+            draft_blind_spots=draft_data.get("blind_spots"),
+            draft_action_tips=draft_data.get("action_tips"),
+            draft_sel_scores=draft_data.get("sel_scores"),
+            critic_passed=critic_passed_val,
+            critic_critique=critic_critique_val,
+            critic_revision_instructions=critic_revision_val,
+        )
+    except Exception as e:
+        print(f"[FeedbackReport DB Error] {e}")
+        return {"status": "ended", "report_ready": False, "message": f"報告儲存失敗：{e}"}
 
     return {"status": "ended", "report_ready": True}
 

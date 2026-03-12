@@ -174,10 +174,6 @@ class DBManager:
     # StudentPersonality CRUD
     # =========================================================================
 
-    async def get_all_personalities(self) -> List[StudentPersonality]:
-        result = await self.db.execute(select(StudentPersonality))
-        return list(result.scalars().all())
-
     async def get_random_personality(self) -> Optional[StudentPersonality]:
         result = await self.db.execute(select(StudentPersonality))
         personalities = list(result.scalars().all())
@@ -200,7 +196,6 @@ class DBManager:
         user_id: int,
         scenario_id: Optional[int] = None,
         personality_id: Optional[int] = None,
-        age_group: Optional[str] = None,
         title: Optional[str] = None,
         livekit_room_name: Optional[str] = None,
     ) -> Session:
@@ -209,7 +204,6 @@ class DBManager:
             user_id=user_id,
             scenario_id=scenario_id,
             personality_id=personality_id,
-            age_group=age_group,
             title=title or "未命名練習",
             livekit_room_name=livekit_room_name,
             is_active=True,
@@ -315,16 +309,32 @@ class DBManager:
         self,
         session_id: int,
         sel_scores: dict,
-        feedback_text: str,
-        analysis_text: str,
-        selected_kist_cards: list,
+        highlights: str,
+        blind_spots: str,
+        action_tips: Optional[str] = None,
+        selected_kist_cards: Optional[list] = None,
+        draft_highlights: Optional[str] = None,
+        draft_blind_spots: Optional[str] = None,
+        draft_action_tips: Optional[str] = None,
+        draft_sel_scores: Optional[dict] = None,
+        critic_passed: Optional[bool] = None,
+        critic_critique: Optional[str] = None,
+        critic_revision_instructions: Optional[str] = None,
     ) -> FeedbackReport:
         report = FeedbackReport(
             session_id=session_id,
             sel_scores=sel_scores,
-            feedback_text=feedback_text,
-            analysis_text=analysis_text,
+            highlights=highlights,
+            blind_spots=blind_spots,
+            action_tips=action_tips,
             selected_kist_cards=selected_kist_cards,
+            draft_highlights=draft_highlights,
+            draft_blind_spots=draft_blind_spots,
+            draft_action_tips=draft_action_tips,
+            draft_sel_scores=draft_sel_scores,
+            critic_passed=critic_passed,
+            critic_critique=critic_critique,
+            critic_revision_instructions=critic_revision_instructions,
         )
         self.db.add(report)
         await self.db.flush()

@@ -18,7 +18,6 @@ class SessionManager:
         user_id: int,
         scenario_id: Optional[int] = None,
         personality_id: Optional[int] = None,
-        age_group: Optional[str] = None,
         title: Optional[str] = None,
         livekit_room_name: Optional[str] = None,
     ) -> Dict[str, Any]:
@@ -26,7 +25,6 @@ class SessionManager:
             user_id=user_id,
             scenario_id=scenario_id,
             personality_id=personality_id,
-            age_group=age_group,
             title=title,
             livekit_room_name=livekit_room_name,
         )
@@ -37,7 +35,6 @@ class SessionManager:
             "user_id": session.user_id,
             "scenario_id": session.scenario_id,
             "personality_id": session.personality_id,
-            "age_group": session.age_group,
             "title": session.title,
             "livekit_room_name": session.livekit_room_name,
             "is_active": session.is_active,
@@ -60,7 +57,6 @@ class SessionManager:
             "user_id": session.user_id,
             "scenario_id": session.scenario_id,
             "personality_id": session.personality_id,
-            "age_group": session.age_group,
             "title": session.title,
             "livekit_room_name": session.livekit_room_name,
             "is_active": session.is_active,

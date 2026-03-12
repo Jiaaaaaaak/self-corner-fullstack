@@ -198,7 +198,7 @@ npm run test:watch # Vitest 監聽模式
 
 ## 資料庫模型重點
 
-`models.py` 定義 10 張表，關鍵關聯：
+`models.py` 定義 9 張表，關鍵關聯：
 - `Session` → FK 到 `scenarios`（情境）和 `student_personalities`（個性）
 - `FeedbackReport` 與 `Session` 是 1:1 關係（`uselist=False`），在 `POST /session/{uuid}/end` 同步生成
 - `EmotionLog` 每輪逐字稿一筆，記錄 9 種情緒分數（0.0–1.0）
