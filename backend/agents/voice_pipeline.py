@@ -42,6 +42,7 @@ class OpenAIRealtimeClient:
         self.on_audio_delta: Optional[Callable[[bytes], None]] = None
         self.on_user_transcription: Optional[Callable[[str], None]] = None
         self.on_agent_response: Optional[Callable[[str], None]] = None
+        self.on_agent_transcript_delta: Optional[Callable[[str], None]] = None
 
     async def connect(self, system_prompt: str):
         if not self.api_key:
@@ -168,6 +169,11 @@ class OpenAIRealtimeClient:
                     })
                     await self.send_event({"type": "response.create"})
 
+                elif event_type == "response.audio_transcript.delta":
+                    delta = data.get("delta", "")
+                    if delta and self.on_agent_transcript_delta:
+                        await self.on_agent_transcript_delta(delta)
+
                 elif event_type == "response.output_item.done":
                     item = data.get("item", {})
                     for c in item.get("content", []):
@@ -277,6 +283,7 @@ class StudentVoicePipeline:
         self.client.on_audio_delta = self.handle_audio_delta
         self.client.on_agent_response = self.handle_agent_text_response
         self.client.on_user_transcription = self.handle_user_transcription
+        self.client.on_agent_transcript_delta = self.handle_agent_transcript_delta
 
         # 3. 啟動非同步監聽迴圈
         audio_task = asyncio.create_task(self.client.loop())
@@ -321,6 +328,10 @@ class StudentVoicePipeline:
         samples_count = len(pcm_data) // 2
         frame = rtc.AudioFrame(data=pcm_data, sample_rate=SAMPLE_RATE, num_channels=CHANNELS, samples_per_channel=samples_count)
         await self.source.capture_frame(frame)
+
+    async def handle_agent_transcript_delta(self, delta: str):
+        payload = json.dumps({"type": "agent_transcript_delta", "delta": delta}).encode("utf-8")
+        await self.room.local_participant.publish_data(payload, reliable=True)
 
     async def handle_agent_text_response(self, text: str):
         if self.db_session_id:

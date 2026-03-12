@@ -23,6 +23,7 @@ export default function ChatPanel({ isPaused, onTogglePause, onEnd, onEmotionCha
   const [inputText, setInputText] = useState("");
   const [isRecording, setIsRecording] = useState(false);
   const [isThinking, setIsThinking] = useState(false);
+  const [streamingContent, setStreamingContent] = useState<string | null>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
   const roomRef = useRef<Room | null>(null);
   const audioElementsRef = useRef<HTMLAudioElement[]>([]);
@@ -48,9 +49,13 @@ export default function ChatPanel({ isPaused, onTogglePause, onEnd, onEmotionCha
     room.on(RoomEvent.DataReceived, (payload: Uint8Array, _participant, _kind) => {
       try {
         const msg = JSON.parse(new TextDecoder().decode(payload));
-        if (msg.type === "agent_response" && msg.text) {
+        if (msg.type === "agent_transcript_delta" && msg.delta) {
           setIsThinking(false);
+          setStreamingContent((prev) => (prev ?? "") + msg.delta);
+        } else if (msg.type === "agent_response" && msg.text) {
+          // Finalize: append final message then clear streaming bubble
           setMessages((prev) => [...prev, { role: "student", content: msg.text }]);
+          setStreamingContent(null);
           if (onEmotionChange) onEmotionChange("neutral");
         } else if (msg.type === "user_transcription" && msg.text) {
           setMessages((prev) => [...prev, { role: "teacher", content: msg.text }]);
@@ -187,7 +192,22 @@ export default function ChatPanel({ isPaused, onTogglePause, onEnd, onEmotionCha
               </div>
             </div>
           ))}
-          {isThinking && (
+          {streamingContent !== null && (
+            <div className="flex justify-start animate-in fade-in duration-200">
+              <div className="w-8 h-8 rounded-full bg-white/80 backdrop-blur-sm border border-[#E5E2D9]/50 overflow-hidden shrink-0 mr-2.5 self-end shadow-sm">
+                <img
+                  src={`/avatars/${studentName}.png`}
+                  alt={studentName}
+                  className="w-full h-full object-cover rounded-full"
+                  onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }}
+                />
+              </div>
+              <div className="max-w-[65%] px-5 py-3 text-[15px] font-medium leading-relaxed shadow-lg bg-white/85 backdrop-blur-sm text-[#3D3831] rounded-[18px] rounded-tl-sm border border-white/50">
+                <p>{streamingContent}<span className="inline-block w-0.5 h-4 bg-[#A09C94] ml-0.5 animate-pulse align-middle" /></p>
+              </div>
+            </div>
+          )}
+          {isThinking && streamingContent === null && (
             <div className="flex justify-start animate-in fade-in duration-300">
               <div className="w-8 h-8 rounded-full bg-white/80 backdrop-blur-sm border border-[#E5E2D9]/50 overflow-hidden shrink-0 mr-2.5 self-end shadow-sm flex items-center justify-center">
                 <img
