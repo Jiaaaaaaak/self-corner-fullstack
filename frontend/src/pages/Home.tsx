@@ -199,8 +199,7 @@ export default function Home() {
         <footer className="mt-auto px-6 md:px-12 py-10 bg-[#3D3831] text-white/60">
           <div className="flex flex-col md:flex-row items-center justify-between gap-6 max-w-[1280px] mx-auto">
             <div className="flex items-center gap-3">
-              <img src="/img/logo/SELf_corner_Logo_transparent.png" alt="SELf-corner" className="w-6 h-6 rounded-sm object-contain" />
-              <span className="font-heading font-bold tracking-widest text-white/90">SELf-corner</span>
+              <img src="/img/logo/SELf_corner_Logo_transparent.png" alt="SELf-corner" className="w-10 h-10 rounded-sm object-contain" />
             </div>
             <div className="flex gap-8 text-[11px] font-bold uppercase tracking-widest">
               <span className="hover:text-primary cursor-pointer transition-colors">使用教學</span>

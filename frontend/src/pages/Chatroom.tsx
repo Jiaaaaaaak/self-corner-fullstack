@@ -55,6 +55,8 @@ export default function Chatroom() {
         tag: s.sel_category ?? "自我覺察",
         emoji: s.emoji ?? "📝",
         description: s.description ?? "",
+        short_desc: s.short_desc ?? undefined,
+        tags: s.tags ?? [],
       }));
       setAllScenarios(data);
       setCompetencyGroups(buildCompetencyGroups(data));
@@ -208,7 +210,7 @@ export default function Chatroom() {
           <div className="flex items-center gap-4 pl-12 lg:pl-0">
             {isStarted ? (
               <h2 className="text-sm font-bold text-[#3D3831] truncate max-w-[500px]">
-                {activeScenario?.title}——<span className="font-normal text-[#706C61]">「{activeScenario?.description}」</span>
+                {activeScenario?.title}——<span className="font-normal text-[#706C61]">「{activeScenario?.short_desc ?? activeScenario?.description}」</span>
               </h2>
             ) : (
               <>
@@ -346,6 +348,7 @@ export default function Chatroom() {
             <StudentProfileSelect
               onConfirm={handleProfileConfirm}
               onBack={handleProfileBack}
+              allowedPersonalityTags={pendingScenario?.tags}
             />
           )}
 

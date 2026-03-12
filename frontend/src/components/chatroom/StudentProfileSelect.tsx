@@ -3,16 +3,16 @@ import { ArrowRight, Sparkles, GraduationCap } from "lucide-react";
 import { ScrollArea } from "@/components/ui/scroll-area";
 
 export const PERSONALITY_TRAITS = [
-  { id: "hedgehog", label: "防衛刺蝟型", emoji: "🦔", desc: "容易築起心牆，用攻擊掩飾脆弱" },
-  { id: "impulsive", label: "衝動干擾型", emoji: "💥", desc: "行為衝動，常打斷他人或製造混亂" },
-  { id: "anxious", label: "焦慮退縮型", emoji: "🐢", desc: "緊張不安，傾向迴避社交與挑戰" },
-  { id: "pressured", label: "高壓衝動型", emoji: "🌋", desc: "承受高壓，情緒爆發時難以自控" },
-  { id: "compliant", label: "順從壓抑型", emoji: "🎭", desc: "表面乖巧，內心壓抑真實感受" },
-  { id: "bully", label: "校園霸王型", emoji: "👊", desc: "以強勢姿態控制同儕關係" },
-  { id: "justice", label: "正義風紀型", emoji: "⚖️", desc: "堅持規則正義，對不公極度敏感" },
-  { id: "gifted", label: "資優孤傲型", emoji: "🧠", desc: "聰明但難融入，顯得疏離冷漠" },
-  { id: "creative", label: "創意散漫型", emoji: "🎨", desc: "富創造力但難以專注常規事務" },
-  { id: "marginal", label: "隨和邊緣型", emoji: "🍃", desc: "看似隨和，實則被群體忽略邊緣化" },
+  { id: "hedgehog", label: "防衛刺蝟型", emoji: "🦔", name: "宇翔", desc: "容易築起心牆，用攻擊掩飾脆弱" },
+  { id: "impulsive", label: "衝動干擾型", emoji: "💥", name: "柏翰", desc: "行為衝動，常打斷他人或製造混亂" },
+  { id: "anxious", label: "焦慮退縮型", emoji: "🐢", name: "芷婷", desc: "緊張不安，傾向迴避社交與挑戰" },
+  { id: "pressured", label: "高壓衝動型", emoji: "🌋", name: "宇杰", desc: "承受高壓，情緒爆發時難以自控" },
+  { id: "compliant", label: "順從壓抑型", emoji: "🎭", name: "家瑜", desc: "表面乖巧，內心壓抑真實感受" },
+  { id: "bully", label: "校園霸王型", emoji: "👊", name: "建宇", desc: "以強勢姿態控制同儕關係" },
+  { id: "justice", label: "正義風紀型", emoji: "⚖️", name: "品妍", desc: "堅持規則正義，對不公極度敏感" },
+  { id: "gifted", label: "資優孤傲型", emoji: "🧠", name: "睿明", desc: "聰明但難融入，顯得疏離冷漠" },
+  { id: "creative", label: "創意散漫型", emoji: "🎨", name: "思妤", desc: "富創造力但難以專注常規事務" },
+  { id: "marginal", label: "隨和邊緣型", emoji: "🍃", name: "柏宇", desc: "看似隨和，實則被群體忽略邊緣化" },
 ];
 
 export const GRADE_LEVELS = [
@@ -30,13 +30,18 @@ export interface StudentProfile {
 interface StudentProfileSelectProps {
   onConfirm: (profile: StudentProfile) => void;
   onBack: () => void;
+  allowedPersonalityTags?: string[];
 }
 
-export default function StudentProfileSelect({ onConfirm, onBack }: StudentProfileSelectProps) {
+export default function StudentProfileSelect({ onConfirm, onBack, allowedPersonalityTags }: StudentProfileSelectProps) {
   const [selectedPersonality, setSelectedPersonality] = useState<string | null>(null);
   const [selectedGrade, setSelectedGrade] = useState<string | null>(null);
 
   const canConfirm = selectedPersonality && selectedGrade;
+
+  const visibleTraits = allowedPersonalityTags?.length
+    ? PERSONALITY_TRAITS.filter((t) => allowedPersonalityTags.includes(t.label))
+    : PERSONALITY_TRAITS;
 
   return (
     <ScrollArea className="h-full">
@@ -58,7 +63,7 @@ export default function StudentProfileSelect({ onConfirm, onBack }: StudentProfi
               <h4 className="font-heading text-sm font-bold text-[#3D3831] tracking-wide">個性特質</h4>
             </div>
             <div className="grid grid-cols-2 md:grid-cols-5 gap-2.5">
-              {PERSONALITY_TRAITS.map((trait) => (
+              {visibleTraits.map((trait) => (
                 <button
                   key={trait.id}
                   onClick={() => setSelectedPersonality(trait.id)}
@@ -68,12 +73,17 @@ export default function StudentProfileSelect({ onConfirm, onBack }: StudentProfi
                       : "border-[#E5E2D9] bg-white hover:border-[#3D3831]/20"
                   }`}
                 >
-                  <span className="text-xl leading-none">{trait.emoji}</span>
-                  <span
-                    className={`text-[11px] font-bold leading-tight ${
-                      selectedPersonality === trait.id ? "text-primary" : "text-[#3D3831]"
-                    }`}
-                  >
+                  <div className="w-14 h-14 rounded-full overflow-hidden border-2 border-[#E5E2D9] bg-[#FAF9F6] shrink-0">
+                    <img
+                      src={`/avatars/${trait.name}.png`}
+                      alt={trait.name}
+                      className="w-full h-full object-cover"
+                    />
+                  </div>
+                  <span className={`text-[12px] font-bold leading-tight ${selectedPersonality === trait.id ? "text-primary" : "text-[#3D3831]"}`}>
+                    {trait.name}
+                  </span>
+                  <span className={`text-[11px] font-semibold leading-tight ${selectedPersonality === trait.id ? "text-primary/80" : "text-[#706C61]"}`}>
                     {trait.label}
                   </span>
                   <span className="text-[10px] text-[#A09C94] leading-snug hidden md:block line-clamp-2">{trait.desc}</span>
@@ -105,7 +115,6 @@ export default function StudentProfileSelect({ onConfirm, onBack }: StudentProfi
                         : "border-[#E5E2D9] bg-white hover:border-[#3D3831]/20"
                     }`}
                   >
-                    <span className="text-2xl leading-none">{grade.emoji}</span>
                     <span className={`text-xs font-bold ${selectedGrade === grade.id ? "text-primary" : "text-[#3D3831]"}`}>
                       {grade.label}
                     </span>

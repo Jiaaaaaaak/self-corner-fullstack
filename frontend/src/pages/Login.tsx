@@ -124,9 +124,6 @@ export default function Login() {
         {/* Brand area */}
         <div className="flex flex-col items-center gap-3">
           <img src="/img/logo/SELf_corner_Logo_transparent.png" alt="SELf-corner" className="w-16 h-16 object-contain" />
-          <h1 className="font-heading text-2xl font-bold text-[#3D3831] tracking-tight">
-            SELf-corner
-          </h1>
           <p className="text-[13px] text-[#706C61] italic text-center font-medium">
             每個老師，都需要一個能安心犯錯的角落。
           </p>

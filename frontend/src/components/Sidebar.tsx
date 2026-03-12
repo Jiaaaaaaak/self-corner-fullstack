@@ -67,10 +67,7 @@ export default function Sidebar({ onNavigate, sessionInfo }: SidebarProps) {
     <div className="flex flex-col h-full w-[260px] bg-[#1E1D1B] text-[#FAF9F6] py-8 px-0 border-r border-white/5">
       {/* Brand area */}
       <div className="flex items-center gap-3 px-6 mb-12">
-        <img src="/img/logo/SELf_corner_Logo_transparent.png" alt="SELf-corner" className="w-7 h-7 rounded-sm shadow-sm object-contain" />
-        <span className="font-heading text-base font-bold tracking-widest uppercase">
-          SELf-corner
-        </span>
+        <img src="/img/logo/SELf_corner_Logo_transparent.png" alt="SELf-corner" className="w-10 h-10 rounded-sm shadow-sm object-contain" />
       </div>
 
       {/* Session Info - shown during active practice */}
