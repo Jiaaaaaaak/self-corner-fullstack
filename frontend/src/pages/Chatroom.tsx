@@ -164,14 +164,23 @@ export default function Chatroom() {
     navigate("/feedback", { state: { currentScenarioId: activeScenario?.id } });
   };
 
+  const EMOTION_FILENAME: Record<string, string> = {
+    neutral: "中性",
+    angry: "憤怒",
+    sad: "悲傷",
+    thinking: "好奇",
+  };
+
   const renderStudentAvatar = () => {
-    if (isPaused) return "⏸️";
-    switch (studentEmotion) {
-      case "angry": return "😤";
-      case "sad": return "🥺";
-      case "thinking": return "🤔";
-      default: return "🧑‍🎓";
-    }
+    const filename = EMOTION_FILENAME[isPaused ? "neutral" : studentEmotion] ?? "中性";
+    return (
+      <img
+        src={`/img/students/${studentName}_${filename}.png`}
+        alt={studentName}
+        className="w-full h-full object-cover"
+        onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }}
+      />
+    );
   };
 
   const emotionLabel = () => {
@@ -246,7 +255,7 @@ export default function Chatroom() {
           {/* Student avatar overlay */}
           {isStarted && (
             <div className="absolute top-6 left-8 z-20 flex items-center gap-4 animate-in fade-in duration-500">
-              <div className="w-14 h-14 rounded-full bg-white/90 backdrop-blur-sm border-2 border-white shadow-xl flex items-center justify-center text-3xl">
+              <div className="w-14 h-14 rounded-full bg-white/90 backdrop-blur-sm border-2 border-white shadow-xl overflow-hidden flex items-center justify-center">
                 {renderStudentAvatar()}
               </div>
               <div className="flex flex-col gap-0.5">

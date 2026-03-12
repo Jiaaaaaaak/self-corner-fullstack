@@ -167,8 +167,13 @@ export default function ChatPanel({ isPaused, onTogglePause, onEnd, onEmotionCha
               className={`flex ${msg.role === "teacher" ? "justify-end" : "justify-start"} animate-in fade-in slide-in-from-bottom-2 duration-300`}
             >
               {msg.role === "student" && (
-                <div className="w-8 h-8 rounded-full bg-white/80 backdrop-blur-sm border border-[#E5E2D9]/50 flex items-center justify-center shrink-0 mr-2.5 self-end shadow-sm">
-                  <span className="text-[10px] font-bold text-[#706C61]">{studentName.charAt(0)}</span>
+                <div className="w-8 h-8 rounded-full bg-white/80 backdrop-blur-sm border border-[#E5E2D9]/50 overflow-hidden shrink-0 mr-2.5 self-end shadow-sm">
+                  <img
+                    src={`/avatars/${studentName}.png`}
+                    alt={studentName}
+                    className="w-full h-full object-cover rounded-full"
+                    onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }}
+                  />
                 </div>
               )}
               <div
@@ -184,8 +189,13 @@ export default function ChatPanel({ isPaused, onTogglePause, onEnd, onEmotionCha
           ))}
           {isThinking && (
             <div className="flex justify-start animate-in fade-in duration-300">
-              <div className="w-8 h-8 rounded-full bg-white/80 backdrop-blur-sm border border-[#E5E2D9]/50 flex items-center justify-center shrink-0 mr-2.5 self-end shadow-sm">
-                <Loader2 className="w-3.5 h-3.5 text-[#706C61] animate-spin" />
+              <div className="w-8 h-8 rounded-full bg-white/80 backdrop-blur-sm border border-[#E5E2D9]/50 overflow-hidden shrink-0 mr-2.5 self-end shadow-sm flex items-center justify-center">
+                <img
+                  src={`/avatars/${studentName}.png`}
+                  alt={studentName}
+                  className="w-full h-full object-cover rounded-full"
+                  onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }}
+                />
               </div>
               <div className="bg-white/80 backdrop-blur-sm border border-white/50 px-5 py-3 rounded-[18px] rounded-tl-sm shadow-lg">
                 <div className="flex gap-1.5">

@@ -123,9 +123,7 @@ export default function Login() {
       >
         {/* Brand area */}
         <div className="flex flex-col items-center gap-3">
-          <div className="w-10 h-10 bg-primary flex items-center justify-center text-white font-bold rounded-lg text-xl shadow-lg shadow-primary/20">
-            S
-          </div>
+          <img src="/img/logo/SELf_corner_Logo_transparent.png" alt="SELf-corner" className="w-16 h-16 object-contain" />
           <h1 className="font-heading text-2xl font-bold text-[#3D3831] tracking-tight">
             SELf-corner
           </h1>
