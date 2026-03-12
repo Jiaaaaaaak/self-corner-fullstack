@@ -67,7 +67,7 @@ export default function Sidebar({ onNavigate, sessionInfo }: SidebarProps) {
     <div className="flex flex-col h-full w-[260px] bg-[#1E1D1B] text-[#FAF9F6] py-8 px-0 border-r border-white/5">
       {/* Brand area */}
       <div className="flex items-center gap-3 px-6 mb-12">
-        <img src="/img/logo/SELf_corner_Logo_transparent.png" alt="SELf-corner" className="w-10 h-10 rounded-sm shadow-sm object-contain" />
+        <img src="/img/logo/SELf_corner_Logo_transparent.png" alt="SELf-corner" className="w-50 h-50 rounded-sm shadow-sm object-contain" />
       </div>
 
       {/* Session Info - shown during active practice */}
@@ -99,11 +99,10 @@ export default function Sidebar({ onNavigate, sessionInfo }: SidebarProps) {
               return (
                 <button
                   key={item.id}
-                  className={`flex items-center gap-3 px-4 py-3 text-[13px] font-heading font-semibold transition-all rounded-sm group relative ${
-                    active
-                      ? "bg-primary/15 text-primary"
-                      : "text-[#A09C94] hover:text-[#FAF9F6] hover:bg-white/5"
-                  }`}
+                  className={`flex items-center gap-3 px-4 py-3 text-[13px] font-heading font-semibold transition-all rounded-sm group relative ${active
+                    ? "bg-primary/15 text-primary"
+                    : "text-[#A09C94] hover:text-[#FAF9F6] hover:bg-white/5"
+                    }`}
                 >
                   {active && (
                     <div className="absolute left-0 top-1/2 -translate-y-1/2 w-1 h-6 bg-primary rounded-r-full" />
@@ -129,11 +128,10 @@ export default function Sidebar({ onNavigate, sessionInfo }: SidebarProps) {
                 <button
                   key={item.path}
                   onClick={() => handleNav(item.path)}
-                  className={`flex items-center gap-3 px-4 py-3 text-[13px] font-heading font-semibold transition-all rounded-sm group relative ${
-                    active
-                      ? "bg-primary/15 text-primary"
-                      : "text-[#A09C94] hover:text-[#FAF9F6] hover:bg-white/5"
-                  }`}
+                  className={`flex items-center gap-3 px-4 py-3 text-[13px] font-heading font-semibold transition-all rounded-sm group relative ${active
+                    ? "bg-primary/15 text-primary"
+                    : "text-[#A09C94] hover:text-[#FAF9F6] hover:bg-white/5"
+                    }`}
                 >
                   {active && (
                     <div className="absolute left-0 top-1/2 -translate-y-1/2 w-1 h-6 bg-primary rounded-r-full" />

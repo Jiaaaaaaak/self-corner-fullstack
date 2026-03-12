@@ -117,13 +117,12 @@ export default function Login() {
       <div className="absolute inset-0 chalk-dots opacity-[0.08] pointer-events-none" />
 
       <div
-        className={`w-full max-w-[440px] bg-white border border-[#E5E2D9] p-10 flex flex-col gap-6 shadow-xl rounded-2xl transition-all duration-300 relative z-10 ${
-          shouldShake ? "animate-shake" : ""
-        }`}
+        className={`w-full max-w-[440px] bg-white border border-[#E5E2D9] p-10 flex flex-col gap-6 shadow-xl rounded-2xl transition-all duration-300 relative z-10 ${shouldShake ? "animate-shake" : ""
+          }`}
       >
         {/* Brand area */}
         <div className="flex flex-col items-center gap-3">
-          <img src="/img/logo/SELf_corner_Logo_transparent.png" alt="SELf-corner" className="w-16 h-16 object-contain" />
+          <img src="/img/logo/SELf_corner_Logo_transparent.png" alt="SELf-corner" className="w-40 h-40 object-contain" />
           <p className="text-[13px] text-[#706C61] italic text-center font-medium">
             每個老師，都需要一個能安心犯錯的角落。
           </p>
@@ -194,11 +193,10 @@ export default function Login() {
           {/* Login button */}
           <button
             type="submit"
-            className={`w-full h-12 mt-2 font-heading text-[13px] font-bold tracking-[0.1em] transition-all flex items-center justify-center gap-2 rounded-xl shadow-lg ${
-              isFilled
+            className={`w-full h-12 mt-2 font-heading text-[13px] font-bold tracking-[0.1em] transition-all flex items-center justify-center gap-2 rounded-xl shadow-lg ${isFilled
                 ? "bg-primary text-white hover:bg-[#C8694F] shadow-primary/20"
                 : "bg-[#D4C4B8] text-white/60 cursor-not-allowed"
-            } ${isValidating ? "cursor-wait" : ""}`}
+              } ${isValidating ? "cursor-wait" : ""}`}
             disabled={!isFilled || isValidating}
           >
             {isValidating ? (
@@ -230,13 +228,13 @@ export default function Login() {
       <Dialog open={registerOpen} onOpenChange={setRegisterOpen}>
         <DialogContent className="sm:max-w-md border-none p-0 overflow-hidden rounded-2xl shadow-2xl">
           <div className="bg-[#3D3831] p-6 text-white flex items-center gap-3">
-             <div className="w-10 h-10 bg-primary rounded-xl flex items-center justify-center shadow-lg">
-                <Lock className="w-5 h-5 text-white" />
-             </div>
-             <div>
-                <h2 className="font-heading text-xl font-bold">建立教師帳號</h2>
-                <p className="text-xs text-white/60 font-medium">Create your safe practice space</p>
-             </div>
+            <div className="w-10 h-10 bg-primary rounded-xl flex items-center justify-center shadow-lg">
+              <Lock className="w-5 h-5 text-white" />
+            </div>
+            <div>
+              <h2 className="font-heading text-xl font-bold">建立教師帳號</h2>
+              <p className="text-xs text-white/60 font-medium">Create your safe practice space</p>
+            </div>
           </div>
           <form onSubmit={handleRegister} className="p-8 space-y-4">
             <div className="space-y-1.5">
@@ -307,7 +305,7 @@ export default function Login() {
       <Dialog open={forgotOpen} onOpenChange={setForgotOpen}>
         <DialogContent className="sm:max-w-md border-none p-0 overflow-hidden rounded-2xl shadow-2xl">
           <div className="bg-[#3D3831] p-6 text-white">
-             <h2 className="font-heading text-xl font-bold">重設密碼</h2>
+            <h2 className="font-heading text-xl font-bold">重設密碼</h2>
           </div>
           <form onSubmit={handleForgotPassword} className="p-8 space-y-4">
             <p className="text-sm text-[#706C61] leading-relaxed font-medium">
