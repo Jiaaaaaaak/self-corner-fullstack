@@ -24,6 +24,7 @@
 | PostgreSQL | 14 以上 |
 | LiveKit Server | Cloud 帳號或自架 |
 | OpenAI API | 需有 Realtime API 存取權限 |
+| Gmail 帳號 | 需開啟兩步驟驗證並申請 App Password（用於寄送驗證信與密碼重設信） |
 
 ---
 
@@ -67,7 +68,19 @@ LIVEKIT_API_SECRET=your_livekit_api_secret
 OPENAI_API_KEY=sk-...
 DATABASE_URL=postgresql+asyncpg://postgres:password@localhost:5432/your_db
 JWT_SECRET_KEY=your_random_secret_key
+FRONTEND_URL=http://localhost:8080
+GOOGLE_CLIENT_ID=your_google_client_id
+GOOGLE_CLIENT_SECRET=your_google_client_secret
+
+# Email SMTP（Gmail App Password）
+SMTP_HOST=smtp.gmail.com
+SMTP_PORT=587
+SMTP_USER=your-gmail@gmail.com
+SMTP_PASSWORD=xxxx xxxx xxxx xxxx
+SMTP_FROM_NAME=SELf-Corner
 ```
+
+> **SMTP 設定說明**：`SMTP_USER` 填申請 App Password 的 Gmail 帳號，`SMTP_PASSWORD` 填 Google 產生的 16 碼應用程式密碼。詳見 [2.8 Gmail App Password 申請](#28-gmail-app-password-申請)。
 
 ### 2.3 建立 PostgreSQL 資料庫
 
@@ -118,6 +131,16 @@ VITE_API_URL=http://localhost:8000
 VITE_LIVEKIT_URL=wss://your-project.livekit.cloud
 ```
 
+### 2.8 Gmail App Password 申請
+
+Email 驗證與忘記密碼功能需要 SMTP 寄信能力。本專案使用 Gmail App Password：
+
+1. 到 Google 帳號安全性頁面，確認已開啟**兩步驟驗證**
+2. 前往 [App Passwords](https://myaccount.google.com/apppasswords) 頁面
+3. 選擇「其他」→ 輸入名稱 `SELf-Corner` → 點擊「產生」
+4. 記下產生的 16 字元密碼，填入 `backend/.env` 的 `SMTP_PASSWORD`
+5. `SMTP_USER` 填入該 Gmail 帳號（例如 `selfcorner.team@gmail.com`）
+
 ---
 
 ## 3. 啟動服務
@@ -165,7 +188,11 @@ npm run dev
 ## 4. 使用流程
 
 ```
-註冊/登入
+註冊（填寫帳號資訊）
+    ↓
+收到驗證信 → 點擊連結完成 Email 驗證
+    ↓
+登入（支援帳號密碼或 Google OAuth）
     ↓
 首頁（了解平台與 SEL 框架）
     ↓
@@ -195,10 +222,27 @@ npm run dev
 
 - 支援帳號（用戶名或電子信箱）+ 密碼登入
 - 提供「註冊」彈窗（需填：用戶名、姓、名、電子信箱、密碼）
-- 提供「忘記密碼」彈窗
-- Google OAuth 按鈕（待串接，目前為預留位置）
+  - 註冊成功後自動切換為「等待驗證」畫面，提示使用者前往信箱點擊驗證連結
+  - 15 秒後顯示「重新寄送驗證信」按鈕
+  - 使用者完成驗證後切回此頁面，系統自動偵測並登入
+- 提供「沒收到驗證信？」連結（位於登入表單內），可重新寄送驗證信
+- 提供「忘記密碼」彈窗，輸入信箱後寄送密碼重設連結
+- Google OAuth 登入（需在 `backend/.env` 設定 `GOOGLE_CLIENT_ID` 與 `GOOGLE_CLIENT_SECRET`）
 
-### 5.2 首頁（`/home`）
+### 5.2 Email 驗證頁（`/verify-email`）
+
+- 使用者點擊驗證信中的連結後自動開啟此頁面
+- 頁面載入時自動呼叫後端 API 完成驗證
+- 驗證成功後顯示成功訊息，隨後自動關閉分頁（若瀏覽器不支援自動關閉，會提示使用者手動關閉）
+
+### 5.3 密碼重設頁（`/reset-password`）
+
+- 使用者點擊密碼重設信中的連結後開啟此頁面
+- 載入時先驗證 token 是否有效，無效則顯示「連結已過期」
+- 輸入新密碼（須符合與註冊相同的密碼規則：至少 10 字元且含英文字母）
+- 重設成功後 3 秒自動跳轉至登入頁
+
+### 5.4 首頁（`/home`）
 
 - 顯示登入使用者姓名
 - 說明平台初衷、SEL 五大核心能力、操作方式
@@ -249,11 +293,18 @@ npm run dev
 
 | 方法 | 路徑 | 說明 |
 |------|------|------|
-| POST | `/auth/register` | 註冊 |
-| POST | `/auth/login` | 登入（設定 Cookie） |
+| POST | `/auth/register` | 註冊（自動寄出驗證信） |
+| POST | `/auth/login` | 登入（需已完成 Email 驗證） |
 | POST | `/auth/refresh` | 刷新 access token |
 | POST | `/auth/logout` | 登出（撤銷 token） |
 | GET | `/auth/me` | 取得當前使用者資訊 |
+| GET | `/auth/verify-email` | 驗證 Email（帶 `token` query 參數） |
+| POST | `/auth/resend-verification` | 重新寄送驗證信 |
+| POST | `/auth/forgot-password` | 忘記密碼（寄送重設連結） |
+| POST | `/auth/reset-password` | 重設密碼（帶 `token` 與 `new_password`） |
+| GET | `/auth/validate-reset-token` | 檢查密碼重設 token 是否有效 |
+| GET | `/auth/google/login` | 重導向至 Google 授權頁 |
+| GET | `/auth/google/callback` | Google OAuth 回調處理 |
 | GET | `/scenarios` | 取得所有情境列表 |
 | POST | `/session/create` | 建立新 Session（帶 `scenario_id`） |
 | POST | `/session/{uuid}/end` | 結束 Session + 觸發教練分析 |
@@ -268,6 +319,23 @@ npm run dev
 ---
 
 ## 7. 常見問題
+
+### Q：註冊後沒有收到驗證信？
+
+**A**：請確認：
+1. `backend/.env` 中的 `SMTP_USER`、`SMTP_PASSWORD` 已正確填入（`SMTP_PASSWORD` 為 Google 16 碼應用程式密碼，非 Gmail 登入密碼）
+2. 檢查垃圾郵件匣（Gmail 寄出的信有時會被歸類為垃圾郵件）
+3. 確認 `FRONTEND_URL=http://localhost:8080`（須與前端實際 port 一致，驗證信中的連結依此產生）
+4. 後端 Terminal 1 查看是否有 `[WARN] 驗證信寄送失敗` 的錯誤訊息
+5. 可在登入頁點擊「沒收到驗證信？」重新寄送
+
+### Q：點擊驗證連結後顯示「驗證連結無效或已過期」？
+
+**A**：驗證連結有效期為 24 小時。若已過期，請在登入頁點擊「沒收到驗證信？」重新寄送。每次重寄會產生新的 token，舊的會自動失效。
+
+### Q：忘記密碼的重設信收不到？
+
+**A**：與驗證信相同的 SMTP 設定。請確認 `.env` 中的 SMTP 相關變數正確。密碼重設連結有效期為 1 小時。注意：純 Google OAuth 使用者（沒有設定密碼的帳號）不會收到重設信，請直接使用 Google 登入。
 
 ### Q：語音對話沒有反應？
 
@@ -285,9 +353,16 @@ npm run dev
 
 ### Q：登入後重新整理頁面被導回登入頁？
 
-**A**：登入狀態透過 `localStorage` 持久化（Zustand persist），正常不會遺失。若發生此問題：
+**A**：登入狀態透過 `AuthInitializer` 元件（`App.tsx`）在頁面載入時自動呼叫 `/auth/me` 恢復。若仍被導回登入頁：
 1. 確認後端 `JWT_SECRET_KEY` 在每次重啟後保持一致（在 `backend/.env` 中固定設定，而非自動生成）
-2. 清除瀏覽器 `localStorage` 重新登入
+2. 確認 `backend/.env` 的 `FRONTEND_URL` 與前端實際 port 一致（預設為 `http://localhost:8080`）
+
+### Q：Google OAuth 登入後被導回登入頁而非首頁？
+
+**A**：Google OAuth 透過整頁 302 重導向完成，回到前端後由 `AuthInitializer` 自動以 cookie 呼叫 `/auth/me` 恢復登入狀態。若失敗：
+1. 確認 `backend/.env` 中 `FRONTEND_URL=http://localhost:8080`（須與前端實際 port 一致）
+2. 確認 `vite.config.ts` 的 `server.proxy` 有設定 `/auth` 轉發至 `http://localhost:8000`
+3. 確認 `GOOGLE_CLIENT_ID` 與 `GOOGLE_CLIENT_SECRET` 正確且已在 Google Cloud Console 設定正確的 redirect URI
 
 ### Q：`seed_data.py` 執行後提示「already exist, skipping」？
 
@@ -323,4 +398,4 @@ pip install "bcrypt==4.0.1"  # 若不符合則重新安裝
 
 ---
 
-*SELf-Corner v2.0 | 2026-03-05*
+*SELf-Corner v2.2 | 2026-03-09*

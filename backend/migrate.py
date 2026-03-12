@@ -28,6 +28,8 @@ MIGRATIONS = [
     # 情境新增欄位
     "ALTER TABLE scenarios ADD COLUMN IF NOT EXISTS short_desc VARCHAR(200)",
     "ALTER TABLE scenarios ADD COLUMN IF NOT EXISTS tags JSONB",
+    # 驗證信箱
+    "ALTER TABLE users ADD COLUMN IF NOT EXISTS is_email_verified BOOLEAN NOT NULL DEFAULT FALSE",
 ]
 
 

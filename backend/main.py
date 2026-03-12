@@ -5,6 +5,8 @@ import os
 from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from dotenv import load_dotenv
+load_dotenv()  # 確保所有後續 import 都能讀到 .env
 
 from database import init_db, close_db
 from api import auth, session, livekit_token, report, history, scenario
