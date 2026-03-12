@@ -4,14 +4,16 @@ Services Layer - Database Manager
 """
 import uuid
 import random
-from datetime import datetime
+import secrets
+from datetime import datetime, timedelta
 from typing import Optional, List, Dict, Any
-from sqlalchemy import select, update, func
+from sqlalchemy import select, update, func, delete
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from models import (
     User, RefreshToken, Session, Scenario, StudentPersonality,
-    Conversation, Transcript, EmotionLog, FeedbackReport, AgentType, GradeLevel
+    Conversation, Transcript, EmotionLog, FeedbackReport, AgentType, GradeLevel,
+    EmailVerificationToken, PasswordResetToken
 )
 
 
@@ -83,6 +85,40 @@ class DBManager:
             select(func.count()).where(Session.user_id == user_id)
         )
         return result.scalar_one() or 0
+
+    
+    async def get_user_by_google_id(self, google_id: str) -> Optional[User]:
+        result = await self.db.execute(select(User).where(User.google_id == google_id))
+        return result.scalar_one_or_none()
+
+    async def find_or_create_google_user(self, google_id: str, email: str) -> User:
+        """查找或建立 Google 使用者，處理帳號合併"""
+        # 1. 用 google_id 查（已綁定的使用者）
+        user = await self.get_user_by_google_id(google_id)
+        if user:
+            return user
+
+        # 2. 用 email 查（合併帳號）
+        user = await self.get_user_by_email(email)
+        if user:
+            user.google_id = google_id
+            user.auth_provider = "both" if user.hashed_password else "google"
+            await self.db.flush()
+            await self.db.refresh(user)
+            return user
+
+        # 3. 建立新使用者
+        user = User(
+            username=email.split("@")[0],
+            email=email,
+            hashed_password=None,
+            google_id=google_id,
+            auth_provider="google",
+        )
+        self.db.add(user)
+        await self.db.flush()
+        await self.db.refresh(user)
+        return user
 
     # =========================================================================
     # Refresh Token CRUD
@@ -374,3 +410,97 @@ class DBManager:
             select(FeedbackReport).where(FeedbackReport.session_id == session_id)
         )
         return result.scalar_one_or_none()
+    
+    # =========================================================================
+    # Email Verification Token CRUD
+    # =========================================================================
+
+    async def create_email_verification_token(self, user_id: int) -> str:
+        """建立驗證 token（24 小時有效），回傳 token 字串"""
+        token = secrets.token_urlsafe(32)
+        expires_at = datetime.utcnow() + timedelta(hours=24)
+        # 先刪除該使用者舊的 token
+        await self.db.execute(
+            delete(EmailVerificationToken)
+            .where(EmailVerificationToken.user_id == user_id)
+        )
+        self.db.add(EmailVerificationToken(
+            user_id=user_id, token=token, expires_at=expires_at
+        ))
+        await self.db.flush()
+        return token
+
+    async def verify_email_token(self, token: str) -> Optional[int]:
+        """驗證 token，成功回傳 user_id，失敗回傳 None"""
+        result = await self.db.execute(
+            select(EmailVerificationToken)
+            .where(EmailVerificationToken.token == token)
+        )
+        record = result.scalar_one_or_none()
+        if not record:
+            return None
+        if record.expires_at < datetime.utcnow():
+            await self.db.delete(record)
+            await self.db.flush()
+            return None
+        user_id = record.user_id
+        # 驗證成功：更新 user.is_email_verified + 刪除 token
+        await self.db.execute(
+            update(User).where(User.id == user_id)
+            .values(is_email_verified=True)
+        )
+        await self.db.delete(record)
+        await self.db.flush()
+        return user_id
+
+    # =========================================================================
+    # Password Reset Token CRUD
+    # =========================================================================
+
+    async def create_password_reset_token(self, user_id: int) -> str:
+        """建立重設碼（1 小時有效），回傳 token 字串"""
+        token = secrets.token_urlsafe(32)
+        expires_at = datetime.utcnow() + timedelta(hours=1)
+        await self.db.execute(
+            delete(PasswordResetToken)
+            .where(PasswordResetToken.user_id == user_id)
+        )
+        self.db.add(PasswordResetToken(
+            user_id=user_id, token=token, expires_at=expires_at
+        ))
+        await self.db.flush()
+        return token
+
+    async def verify_password_reset_token(self, token: str) -> Optional[int]:
+        """驗證重設碼，成功回傳 user_id，失敗回傳 None"""
+        result = await self.db.execute(
+            select(PasswordResetToken)
+            .where(PasswordResetToken.token == token)
+        )
+        record = result.scalar_one_or_none()
+        if not record:
+            return None
+        if record.expires_at < datetime.utcnow():
+            await self.db.delete(record)
+            await self.db.flush()
+            return None
+        return record.user_id
+        
+
+    async def consume_password_reset_token(
+        self, token: str, new_hashed_password: str
+    ) -> bool:
+        """用掉重設碼並更新密碼"""
+        user_id = await self.verify_password_reset_token(token)
+        if not user_id:
+            return False
+        await self.db.execute(
+            update(User).where(User.id == user_id)
+            .values(hashed_password=new_hashed_password)
+        )
+        await self.db.execute(
+            delete(PasswordResetToken)
+            .where(PasswordResetToken.token == token)
+        )
+        await self.db.flush()
+        return True

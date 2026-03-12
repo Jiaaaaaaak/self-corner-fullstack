@@ -38,6 +38,8 @@ MIGRATIONS = [
         behavior_desc TEXT NOT NULL,
         sort_order INTEGER DEFAULT 0
     )""",
+    # 驗證信箱
+    "ALTER TABLE users ADD COLUMN IF NOT EXISTS is_email_verified BOOLEAN NOT NULL DEFAULT FALSE",
 ]
 
 
