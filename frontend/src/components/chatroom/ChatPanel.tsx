@@ -154,17 +154,16 @@ export default function ChatPanel({ isPaused, onTogglePause, onEnd, onEmotionCha
     }
   };
 
-  // Only show recent messages to preserve screen space
-  const visibleMessages = messages.slice(-3);
-
   return (
     <div className="absolute bottom-0 left-0 right-0 flex flex-col z-30">
-      {/* Chat messages - transparent, minimal, only recent */}
+      {/* Chat messages - scrollable full history */}
       <div className="px-8 py-4">
-        <div className="max-w-4xl mx-auto flex flex-col gap-4">
-          {visibleMessages.map((msg, i) => (
+        <div className="max-w-4xl mx-auto flex flex-col gap-2">
+          <div className="max-h-[18vh] overflow-y-auto pr-1 [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:bg-white/30 [&::-webkit-scrollbar-thumb]:rounded-full">
+            <div className="flex flex-col gap-4">
+          {messages.map((msg, i) => (
             <div
-              key={messages.length - visibleMessages.length + i}
+              key={i}
               className={`flex ${msg.role === "teacher" ? "justify-end" : "justify-start"} animate-in fade-in slide-in-from-bottom-2 duration-300`}
             >
               {msg.role === "student" && (
@@ -197,7 +196,9 @@ export default function ChatPanel({ isPaused, onTogglePause, onEnd, onEmotionCha
               </div>
             </div>
           )}
-          <div ref={bottomRef} />
+              <div ref={bottomRef} />
+            </div>
+          </div>
         </div>
       </div>
 

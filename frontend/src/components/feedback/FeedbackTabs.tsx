@@ -39,22 +39,24 @@ export default function FeedbackTabs({
 }: FeedbackTabsProps) {
   return (
     <Tabs defaultValue="expert" className="flex flex-col flex-1 min-h-0">
-      <TabsList className="w-full bg-[#FAF9F6] border border-[#E5E2D9] rounded-xl p-1 h-auto shrink-0">
-        <TabsTrigger
-          value="expert"
-          className="flex-1 flex items-center gap-2 py-2.5 text-sm font-heading font-semibold data-[state=active]:bg-white data-[state=active]:text-primary data-[state=active]:shadow-sm rounded-lg transition-all"
-        >
-          <Lightbulb className="w-4 h-4" />
-          專家建議
-        </TabsTrigger>
-        <TabsTrigger
-          value="transcript"
-          className="flex-1 flex items-center gap-2 py-2.5 text-sm font-heading font-semibold data-[state=active]:bg-white data-[state=active]:text-primary data-[state=active]:shadow-sm rounded-lg transition-all"
-        >
-          <MessageCircle className="w-4 h-4" />
-          對話逐字稿
-        </TabsTrigger>
-      </TabsList>
+      <div className="px-0 pt-0 pb-0 border-b border-[#E5E2D9] bg-[#FAF9F6]/30 shrink-0">
+        <TabsList className="bg-transparent p-0 h-auto gap-0 rounded-none">
+          <TabsTrigger
+            value="expert"
+            className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:shadow-none px-5 pb-3 pt-1 font-heading font-bold text-sm text-muted-foreground data-[state=active]:text-foreground flex items-center gap-2"
+          >
+            <Lightbulb className="w-4 h-4" />
+            專家建議
+          </TabsTrigger>
+          <TabsTrigger
+            value="transcript"
+            className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:shadow-none px-5 pb-3 pt-1 font-heading font-bold text-sm text-muted-foreground data-[state=active]:text-foreground flex items-center gap-2"
+          >
+            <MessageCircle className="w-4 h-4" />
+            對話逐字稿
+          </TabsTrigger>
+        </TabsList>
+      </div>
 
       {/* Tab 1: Expert Suggestions + AI Coach */}
       <TabsContent value="expert" className="flex flex-col gap-6 flex-1 min-h-0 mt-4">

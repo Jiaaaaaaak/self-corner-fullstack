@@ -249,6 +249,7 @@ export default function Feedback() {
             <div className="bg-white border border-[#E5E2D9] rounded-2xl shadow-sm p-8 flex flex-col gap-6">
               <div className="flex items-center justify-between">
                  <h2 className="font-heading text-lg font-bold text-[#3D3831]">五力指標分佈</h2>
+                 {report && <Badge variant="outline">Grade A+</Badge>}
               </div>
               <div className="h-[300px] bg-[#FAF9F6] rounded-xl flex items-center justify-center overflow-hidden border border-[#E5E2D9]/50">
                 <ResponsiveContainer width="100%" height="100%">
@@ -269,6 +270,7 @@ export default function Feedback() {
                     <Activity className="w-5 h-5 text-primary" />
                     <h2 className="font-heading text-lg font-bold text-[#3D3831]">學生情緒流動</h2>
                  </div>
+                 {emotionChartData.length > 0 && <Badge>Positive Trend</Badge>}
               </div>
               {emotionChartData.length > 0 ? (
                 <div className="h-[280px] w-full">
