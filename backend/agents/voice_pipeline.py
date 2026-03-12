@@ -17,7 +17,7 @@ from livekit.agents import JobContext, JobRequest, WorkerOptions, cli
 
 from agents.prompts import build_student_prompt, TOOLS_SCHEMA, build_semantic_analysis_prompt
 from database import async_session_maker
-from models import EmotionLog, Session, Scenario, StudentPersonality, Transcript
+from models import EmotionLog, Session, Scenario, StudentPersonality, Transcript, GradeLevel
 from langchain_openai import ChatOpenAI
 from sqlalchemy import select
 
@@ -42,6 +42,7 @@ class OpenAIRealtimeClient:
         self.on_audio_delta: Optional[Callable[[bytes], None]] = None
         self.on_user_transcription: Optional[Callable[[str], None]] = None
         self.on_agent_response: Optional[Callable[[str], None]] = None
+        self.on_agent_transcript_delta: Optional[Callable[[str], None]] = None
 
     async def connect(self, system_prompt: str):
         if not self.api_key:
@@ -168,6 +169,11 @@ class OpenAIRealtimeClient:
                     })
                     await self.send_event({"type": "response.create"})
 
+                elif event_type == "response.audio_transcript.delta":
+                    delta = data.get("delta", "")
+                    if delta and self.on_agent_transcript_delta:
+                        await self.on_agent_transcript_delta(delta)
+
                 elif event_type == "response.output_item.done":
                     item = data.get("item", {})
                     for c in item.get("content", []):
@@ -197,6 +203,9 @@ class StudentVoicePipeline:
         self.db_session_id: Optional[int] = None
         self.last_emotion_scores: dict = {}
         self.scenario_title: str = ""
+        self.scenario_description: str = ""
+        self.personality_type: str = ""
+        self.domain_weights: dict = {}
 
     async def _resolve_session_id(self) -> Optional[int]:
         room_name = self.room.name
@@ -241,12 +250,21 @@ class StudentVoicePipeline:
 
                     if scenario and personality:
                         self.scenario_title = scenario.title
+                        self.scenario_description = scenario.description or scenario.title
+                        self.personality_type = personality.personality_type or ""
+                        self.domain_weights = personality.domain_weights or {}
                         self.last_emotion_scores = scenario.initial_emotions or {
                             "HAPPY": 0.10, "SAD": 0.20, "ANGRY": 0.05, "SURPRISED": 0.05,
                             "ANXIOUS": 0.30, "FRUSTRATED": 0.15, "CONFIDENT": 0.10,
                             "CURIOUS": 0.15, "NEUTRAL": 0.40,
                         }
-                        return build_student_prompt(scenario, personality)
+                        grade = None
+                        if session.session_metadata:
+                            grade_id = session.session_metadata.get("grade_id")
+                            if grade_id:
+                                r = await db.execute(select(GradeLevel).where(GradeLevel.id == grade_id))
+                                grade = r.scalar_one_or_none()
+                        return build_student_prompt(scenario, personality, grade=grade)
 
                     break
 
@@ -274,6 +292,7 @@ class StudentVoicePipeline:
         self.client.on_audio_delta = self.handle_audio_delta
         self.client.on_agent_response = self.handle_agent_text_response
         self.client.on_user_transcription = self.handle_user_transcription
+        self.client.on_agent_transcript_delta = self.handle_agent_transcript_delta
 
         # 3. 啟動非同步監聽迴圈
         audio_task = asyncio.create_task(self.client.loop())
@@ -319,6 +338,10 @@ class StudentVoicePipeline:
         frame = rtc.AudioFrame(data=pcm_data, sample_rate=SAMPLE_RATE, num_channels=CHANNELS, samples_per_channel=samples_count)
         await self.source.capture_frame(frame)
 
+    async def handle_agent_transcript_delta(self, delta: str):
+        payload = json.dumps({"type": "agent_transcript_delta", "delta": delta}).encode("utf-8")
+        await self.room.local_participant.publish_data(payload, reliable=True)
+
     async def handle_agent_text_response(self, text: str):
         if self.db_session_id:
             async with async_session_maker() as db:
@@ -356,7 +379,13 @@ class StudentVoicePipeline:
     async def exec_semantic_analysis(self, teacher_input: str) -> str:
         # (保持原有的情緒分析邏輯...)
         self.turn_count += 1
-        prompt = build_semantic_analysis_prompt(teacher_input, self.last_emotion_scores, self.scenario_title)
+        prompt = build_semantic_analysis_prompt(
+            teacher_input,
+            self.last_emotion_scores,
+            self.scenario_description,
+            self.personality_type,
+            self.domain_weights,
+        )
         response = await local_analyzer_llm.ainvoke(prompt)
         emotion_json_str = response.content
         try:

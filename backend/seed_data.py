@@ -5,7 +5,7 @@ Seed Data - 預填情境與學生個性初始資料
 import asyncio
 import json
 from database import async_session_maker, init_db
-from models import Scenario, StudentPersonality, User
+from models import Scenario, StudentPersonality, User, GradeLevel
 from sqlalchemy import select, text
 from core.auth_module import hash_password
 
@@ -394,6 +394,7 @@ STUDENT_PERSONALITIES = [
         "name": "宇翔",
         "personality_type": "低友善、高神經質",
         "personality_tags": "防衛刺蝟型",
+        "short_desc": "容易築起心牆，用攻擊掩飾脆弱",
         "domain_weights": {"學業": 3, "情感": 2, "人際": 4, "規矩": 2},
         "base_prompt": (
             "你是一個防衛心極強的學生，名字叫宇翔。你低友善、高神經質，"
@@ -414,6 +415,7 @@ STUDENT_PERSONALITIES = [
         "name": "柏翰",
         "personality_type": "高外向、低嚴謹",
         "personality_tags": "衝動干擾型",
+        "short_desc": "行為衝動，常打斷他人或製造混亂",
         "domain_weights": {"學業": 1, "情感": 2, "人際": 5, "規矩": 1},
         "base_prompt": (
             "你是一個衝動、愛引人注意的學生，名字叫柏翰。你高外向、低嚴謹，"
@@ -434,6 +436,7 @@ STUDENT_PERSONALITIES = [
         "name": "芷婷",
         "personality_type": "高神經質、低外向",
         "personality_tags": "焦慮退縮型",
+        "short_desc": "緊張不安，傾向迴避社交與挑戰",
         "domain_weights": {"學業": 3, "情感": 2, "人際": 5, "規矩": 4},
         "base_prompt": (
             "你是一個非常焦慮、退縮的學生，名字叫芷婷。你高神經質、低外向，"
@@ -455,6 +458,7 @@ STUDENT_PERSONALITIES = [
         "name": "宇傑",
         "personality_type": "高外向、高神經質",
         "personality_tags": "高壓衝動型",
+        "short_desc": "承受高壓，情緒爆發時難以自控",
         "domain_weights": {"學業": 4, "情感": 4, "人際": 4, "規矩": 2},
         "base_prompt": (
             "你是一個情緒起伏劇烈、容易爆衝的學生，名字叫宇傑。你高外向、高神經質，"
@@ -476,6 +480,7 @@ STUDENT_PERSONALITIES = [
         "name": "家瑜",
         "personality_type": "高友善、高嚴謹",
         "personality_tags": "順從壓抑型",
+        "short_desc": "表面乖巧，內心壓抑真實感受",
         "domain_weights": {"學業": 5, "情感": 2, "人際": 4, "規矩": 5},
         "base_prompt": (
             "你是一個表面上乖巧聽話但內心壓力很大的學生，名字叫家瑜。你高友善、高嚴謹，"
@@ -497,6 +502,7 @@ STUDENT_PERSONALITIES = [
         "name": "建宇",
         "personality_type": "高外向、低友善",
         "personality_tags": "校園霸王型",
+        "short_desc": "以強勢姿態控制同儕關係",
         "domain_weights": {"學業": 1, "情感": 3, "人際": 5, "規矩": 0},
         "base_prompt": (
             "你是一個強勢、習慣主導他人的學生，名字叫建宇。你高外向、低友善，"
@@ -519,6 +525,7 @@ STUDENT_PERSONALITIES = [
         "name": "品妍",
         "personality_type": "高嚴謹、高外向",
         "personality_tags": "正義風紀型",
+        "short_desc": "堅持規則正義，對不公極度敏感",
         "domain_weights": {"學業": 4, "情感": 1, "人際": 2, "規矩": 5},
         "base_prompt": (
             "你是一個非常重視規則和公平的學生，名字叫品妍。你高嚴謹、高外向，"
@@ -541,6 +548,7 @@ STUDENT_PERSONALITIES = [
         "name": "睿明",
         "personality_type": "高開放、低外向",
         "personality_tags": "資優孤傲型",
+        "short_desc": "聰明但難融入，顯得疏離冷漠",
         "domain_weights": {"學業": 5, "情感": 1, "人際": 1, "規矩": 2},
         "base_prompt": (
             "你是一個聰明但孤僻的學生，名字叫睿明。你高開放、低外向，"
@@ -563,6 +571,7 @@ STUDENT_PERSONALITIES = [
         "name": "思妤",
         "personality_type": "高開放、低嚴謹",
         "personality_tags": "創意散漫型",
+        "short_desc": "富創造力但難以專注常規事務",
         "domain_weights": {"學業": 2, "情感": 5, "人際": 4, "規矩": 2},
         "base_prompt": (
             "你是一個充滿創意但做事散漫的學生，名字叫思妤。你高開放、低嚴謹，"
@@ -584,6 +593,7 @@ STUDENT_PERSONALITIES = [
         "name": "柏宇",
         "personality_type": "低外向、高友善",
         "personality_tags": "隨和邊緣型",
+        "short_desc": "看似隨和，實則被群體忽略邊緣化",
         "domain_weights": {"學業": 3, "情感": 2, "人際": 3, "規矩": 4},
         "base_prompt": (
             "你是一個隨和、沒有存在感的學生，名字叫柏宇。你低外向、高友善，"
@@ -599,6 +609,38 @@ STUDENT_PERSONALITIES = [
             "被問到自己的感受時，會想很久才說出一個不太確定的答案。"
             "當老師表現出真的很在乎你時，偶爾會說出一句讓人心疼的話。"
         ),
+    },
+]
+
+
+GRADE_LEVELS = [
+    {
+        "id": "lower-elementary",
+        "label": "低年級",
+        "desc": "小一～小二",
+        "behavior_desc": "以自我為中心，情緒表達直接，需要具體簡單的規則引導，正向鼓勵效果顯著",
+        "sort_order": 1,
+    },
+    {
+        "id": "mid-elementary",
+        "label": "中年級",
+        "desc": "小三～小四",
+        "behavior_desc": "開始重視同儕關係，對公平感敏感，規則認知趨於成熟，喜歡被賦予小任務",
+        "sort_order": 2,
+    },
+    {
+        "id": "upper-elementary",
+        "label": "高年級",
+        "desc": "小五～小六",
+        "behavior_desc": "同儕影響力增強，自尊心強，開始追求自主，對說教式管教容易反彈",
+        "sort_order": 3,
+    },
+    {
+        "id": "junior-high",
+        "label": "國中生",
+        "desc": "國一～國三",
+        "behavior_desc": "青春期情緒波動大，強調自我認同，對師長權威容易挑戰，需要尊重與平等對話",
+        "sort_order": 4,
     },
 ]
 
@@ -639,6 +681,18 @@ async def migrate_db():
         await db.execute(text(
             "ALTER TABLE scenarios ADD COLUMN IF NOT EXISTS tags JSONB"
         ))
+        await db.execute(text(
+            "ALTER TABLE student_personalities ADD COLUMN IF NOT EXISTS short_desc TEXT"
+        ))
+        await db.execute(text("""
+            CREATE TABLE IF NOT EXISTS grade_levels (
+                id VARCHAR(30) PRIMARY KEY,
+                label VARCHAR(20) NOT NULL,
+                "desc" VARCHAR(50) NOT NULL,
+                behavior_desc TEXT NOT NULL,
+                sort_order INTEGER DEFAULT 0
+            )
+        """))
         await db.commit()
     print("[Migrate] 所有欄位更新完成。")
 
@@ -699,6 +753,20 @@ async def seed():
             print(f"[Seed] Inserted {p_inserted} student personalities.")
         if p_updated:
             print(f"[Seed] Updated {p_updated} student personalities.")
+
+        # 年級資料（UPSERT by id）
+        for g in GRADE_LEVELS:
+            result = await db.execute(
+                select(GradeLevel).where(GradeLevel.id == g["id"])
+            )
+            existing = result.scalar_one_or_none()
+            if existing:
+                for k, v in g.items():
+                    if k != "id":
+                        setattr(existing, k, v)
+            else:
+                db.add(GradeLevel(**g))
+        print(f"[Seed] Grade levels seeded ({len(GRADE_LEVELS)} rows).")
 
         # 測試帳號
         existing_user = await db.execute(

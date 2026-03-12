@@ -28,6 +28,16 @@ MIGRATIONS = [
     # 情境新增欄位
     "ALTER TABLE scenarios ADD COLUMN IF NOT EXISTS short_desc VARCHAR(200)",
     "ALTER TABLE scenarios ADD COLUMN IF NOT EXISTS tags JSONB",
+    # 學生個性新增短描述
+    "ALTER TABLE student_personalities ADD COLUMN IF NOT EXISTS short_desc TEXT",
+    # 年級表
+    """CREATE TABLE IF NOT EXISTS grade_levels (
+        id VARCHAR(30) PRIMARY KEY,
+        label VARCHAR(20) NOT NULL,
+        "desc" VARCHAR(50) NOT NULL,
+        behavior_desc TEXT NOT NULL,
+        sort_order INTEGER DEFAULT 0
+    )""",
     # 驗證信箱
     "ALTER TABLE users ADD COLUMN IF NOT EXISTS is_email_verified BOOLEAN NOT NULL DEFAULT FALSE",
 ]
@@ -37,12 +47,17 @@ async def run_migrations():
     print("[Migrate] Starting migration...")
     async with engine.begin() as conn:
         for sql in MIGRATIONS:
-            col = sql.split("ADD COLUMN IF NOT EXISTS")[-1].strip().split()[0]
+            if "ADD COLUMN IF NOT EXISTS" in sql:
+                label = sql.split("ADD COLUMN IF NOT EXISTS")[-1].strip().split()[0]
+            elif sql.strip().upper().startswith("CREATE TABLE"):
+                label = sql.strip().split()[5]  # table name
+            else:
+                label = sql.strip()[:40]
             try:
                 await conn.execute(text(sql))
-                print(f"[Migrate] OK: {col}")
+                print(f"[Migrate] OK: {label}")
             except Exception as e:
-                print(f"[Migrate] FAIL: {col}: {e}")
+                print(f"[Migrate] FAIL: {label}: {e}")
     print("[Migrate] Done.")
 
 

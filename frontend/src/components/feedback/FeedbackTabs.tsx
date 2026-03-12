@@ -39,22 +39,24 @@ export default function FeedbackTabs({
 }: FeedbackTabsProps) {
   return (
     <Tabs defaultValue="expert" className="flex flex-col flex-1 min-h-0">
-      <TabsList className="w-full bg-[#FAF9F6] border border-[#E5E2D9] rounded-xl p-1 h-auto shrink-0">
-        <TabsTrigger
-          value="expert"
-          className="flex-1 flex items-center gap-2 py-2.5 text-sm font-heading font-semibold data-[state=active]:bg-white data-[state=active]:text-primary data-[state=active]:shadow-sm rounded-lg transition-all"
-        >
-          <Lightbulb className="w-4 h-4" />
-          專家建議
-        </TabsTrigger>
-        <TabsTrigger
-          value="transcript"
-          className="flex-1 flex items-center gap-2 py-2.5 text-sm font-heading font-semibold data-[state=active]:bg-white data-[state=active]:text-primary data-[state=active]:shadow-sm rounded-lg transition-all"
-        >
-          <MessageCircle className="w-4 h-4" />
-          對話逐字稿
-        </TabsTrigger>
-      </TabsList>
+      <div className="px-0 pt-0 pb-0 border-b border-[#E5E2D9] bg-[#FAF9F6]/30 shrink-0">
+        <TabsList className="bg-transparent p-0 h-auto gap-0 rounded-none">
+          <TabsTrigger
+            value="expert"
+            className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:shadow-none px-5 pb-3 pt-1 font-heading font-bold text-sm text-muted-foreground data-[state=active]:text-foreground flex items-center gap-2"
+          >
+            <Lightbulb className="w-4 h-4" />
+            教練建議
+          </TabsTrigger>
+          <TabsTrigger
+            value="transcript"
+            className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:shadow-none px-5 pb-3 pt-1 font-heading font-bold text-sm text-muted-foreground data-[state=active]:text-foreground flex items-center gap-2"
+          >
+            <MessageCircle className="w-4 h-4" />
+            對話逐字稿
+          </TabsTrigger>
+        </TabsList>
+      </div>
 
       {/* Tab 1: Expert Suggestions + AI Coach */}
       <TabsContent value="expert" className="flex flex-col gap-6 flex-1 min-h-0 mt-4">
@@ -98,18 +100,17 @@ export default function FeedbackTabs({
             <div className="w-10 h-10 bg-secondary rounded-xl flex items-center justify-center shadow-lg">
               <Sparkles className="w-5 h-5 text-white" />
             </div>
-            <h2 className="font-heading text-lg font-bold text-white tracking-wide">與 AI 專業督導對話</h2>
+            <h2 className="font-heading text-lg font-bold text-white tracking-wide">與 AI 教練對話</h2>
           </div>
 
           <div className="max-h-[240px] overflow-y-auto relative z-10">
             <div className="flex flex-col gap-4">
               {chatHistory.map((msg, i) => (
                 <div key={i} className={`flex ${msg.role === "user" ? "justify-end" : "justify-start"}`}>
-                  <div className={`max-w-[90%] px-5 py-4 text-sm leading-relaxed rounded-[18px] font-medium ${
-                    msg.role === "user"
-                      ? "bg-primary/80 text-white rounded-tr-none"
-                      : "bg-white/10 border border-white/10 text-white/90 rounded-tl-none"
-                  }`}>
+                  <div className={`max-w-[90%] px-5 py-4 text-sm leading-relaxed rounded-[18px] font-medium ${msg.role === "user"
+                    ? "bg-primary/80 text-white rounded-tr-none"
+                    : "bg-white/10 border border-white/10 text-white/90 rounded-tl-none"
+                    }`}>
                     {msg.content}
                   </div>
                 </div>
@@ -130,7 +131,7 @@ export default function FeedbackTabs({
 
           <div className="relative z-10 flex flex-col gap-3">
             <Textarea
-              placeholder="詢問督導建議：例如『如何更好地處理學生的抵觸情緒？』"
+              placeholder="詢問教練建議：例如『如何更好地處理學生的抵觸情緒？』"
               value={userInput}
               onChange={(e) => onUserInputChange(e.target.value)}
               onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); onSendCoach(); } }}
@@ -166,11 +167,10 @@ export default function FeedbackTabs({
                   style={{ animationDelay: `${index * 50}ms` }}
                 >
                   <div
-                    className={`max-w-[80%] px-5 py-4 shadow-sm border ${
-                      entry.speaker === "teacher"
-                        ? "bg-primary text-white border-primary/10 rounded-[20px] rounded-tr-none"
-                        : "bg-white border-[#E5E2D9] text-[#3D3831] rounded-[20px] rounded-tl-none font-medium"
-                    }`}
+                    className={`max-w-[80%] px-5 py-4 shadow-sm border ${entry.speaker === "teacher"
+                      ? "bg-primary text-white border-primary/10 rounded-[20px] rounded-tr-none"
+                      : "bg-white border-[#E5E2D9] text-[#3D3831] rounded-[20px] rounded-tl-none font-medium"
+                      }`}
                   >
                     <span className="text-[9px] font-bold uppercase tracking-[0.2em] mb-2 block opacity-60">
                       {entry.speaker === "teacher" ? "Teacher" : "Student"}

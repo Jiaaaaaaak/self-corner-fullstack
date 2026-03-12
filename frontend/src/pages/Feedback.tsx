@@ -157,9 +157,9 @@ export default function Feedback() {
   // Build radar data from sel_scores
   const radarData = report
     ? Object.entries(report.sel_scores).map(([key, value]) => ({
-        subject: SEL_LABELS[key] ?? key,
-        value: typeof value === "number" ? value * 10 : value,
-      }))
+      subject: SEL_LABELS[key] ?? key,
+      value: typeof value === "number" ? value * 10 : value,
+    }))
     : [];
 
   // Build emotion flow data from emotion_logs
@@ -209,12 +209,12 @@ export default function Feedback() {
         <div className="flex flex-col md:flex-row md:items-start justify-between gap-6 pl-12 lg:pl-0">
           <div className="flex flex-col gap-1">
             <div className="flex items-center gap-2">
-               <Badge className="bg-[#81B29A15] text-[#81B29A] border-[#81B29A30] font-heading font-bold text-[10px] tracking-widest uppercase">Session Completed</Badge>
-               <span className="text-[11px] font-bold text-[#A09C94] uppercase tracking-wider">
-                 {report?.generated_at ? new Date(report.generated_at).toLocaleString("zh-TW") : ""}
-               </span>
+              <Badge className="bg-[#81B29A15] text-[#81B29A] border-[#81B29A30] font-heading font-bold text-[10px] tracking-widest uppercase">Session Completed</Badge>
+              <span className="text-[11px] font-bold text-[#A09C94] uppercase tracking-wider">
+                {report?.generated_at ? new Date(report.generated_at).toLocaleString("zh-TW") : ""}
+              </span>
             </div>
-            <h1 className="font-heading text-3xl font-bold text-[#3D3831] tracking-tight mt-2">專家回饋與深度分析</h1>
+            <h1 className="font-heading text-3xl font-bold text-[#3D3831] tracking-tight mt-2">教練回饋與深度分析</h1>
             {report?.scenario_title && (
               <p className="text-[15px] text-[#706C61] font-medium">情境：{report.scenario_title}</p>
             )}
@@ -248,7 +248,7 @@ export default function Feedback() {
             {/* Radar Card */}
             <div className="bg-white border border-[#E5E2D9] rounded-2xl shadow-sm p-8 flex flex-col gap-6">
               <div className="flex items-center justify-between">
-                 <h2 className="font-heading text-lg font-bold text-[#3D3831]">五力指標分佈</h2>
+                <h2 className="font-heading text-lg font-bold text-[#3D3831]">SEL 指標分佈</h2>
               </div>
               <div className="h-[300px] bg-[#FAF9F6] rounded-xl flex items-center justify-center overflow-hidden border border-[#E5E2D9]/50">
                 <ResponsiveContainer width="100%" height="100%">
@@ -265,10 +265,10 @@ export default function Feedback() {
             {/* Emotion Flow Card */}
             <div className="bg-white border border-[#E5E2D9] rounded-2xl shadow-sm p-8 flex flex-col gap-6">
               <div className="flex items-center justify-between">
-                 <div className="flex items-center gap-2">
-                    <Activity className="w-5 h-5 text-primary" />
-                    <h2 className="font-heading text-lg font-bold text-[#3D3831]">學生情緒流動</h2>
-                 </div>
+                <div className="flex items-center gap-2">
+                  <Activity className="w-5 h-5 text-primary" />
+                  <h2 className="font-heading text-lg font-bold text-[#3D3831]">學生情緒流動</h2>
+                </div>
               </div>
               {emotionChartData.length > 0 ? (
                 <div className="h-[280px] w-full">

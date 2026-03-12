@@ -23,6 +23,7 @@ export default function ChatPanel({ isPaused, onTogglePause, onEnd, onEmotionCha
   const [inputText, setInputText] = useState("");
   const [isRecording, setIsRecording] = useState(false);
   const [isThinking, setIsThinking] = useState(false);
+  const [streamingContent, setStreamingContent] = useState<string | null>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
   const roomRef = useRef<Room | null>(null);
   const audioElementsRef = useRef<HTMLAudioElement[]>([]);
@@ -48,9 +49,13 @@ export default function ChatPanel({ isPaused, onTogglePause, onEnd, onEmotionCha
     room.on(RoomEvent.DataReceived, (payload: Uint8Array, _participant, _kind) => {
       try {
         const msg = JSON.parse(new TextDecoder().decode(payload));
-        if (msg.type === "agent_response" && msg.text) {
+        if (msg.type === "agent_transcript_delta" && msg.delta) {
           setIsThinking(false);
+          setStreamingContent((prev) => (prev ?? "") + msg.delta);
+        } else if (msg.type === "agent_response" && msg.text) {
+          // Finalize: append final message then clear streaming bubble
           setMessages((prev) => [...prev, { role: "student", content: msg.text }]);
+          setStreamingContent(null);
           if (onEmotionChange) onEmotionChange("neutral");
         } else if (msg.type === "user_transcription" && msg.text) {
           setMessages((prev) => [...prev, { role: "teacher", content: msg.text }]);
@@ -154,22 +159,26 @@ export default function ChatPanel({ isPaused, onTogglePause, onEnd, onEmotionCha
     }
   };
 
-  // Only show recent messages to preserve screen space
-  const visibleMessages = messages.slice(-3);
-
   return (
     <div className="absolute bottom-0 left-0 right-0 flex flex-col z-30">
-      {/* Chat messages - transparent, minimal, only recent */}
+      {/* Chat messages - scrollable full history */}
       <div className="px-8 py-4">
-        <div className="max-w-4xl mx-auto flex flex-col gap-4">
-          {visibleMessages.map((msg, i) => (
+        <div className="max-w-4xl mx-auto flex flex-col gap-2">
+          <div className="max-h-[18vh] overflow-y-auto pr-1 [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:bg-white/30 [&::-webkit-scrollbar-thumb]:rounded-full">
+            <div className="flex flex-col gap-4">
+          {messages.map((msg, i) => (
             <div
-              key={messages.length - visibleMessages.length + i}
+              key={i}
               className={`flex ${msg.role === "teacher" ? "justify-end" : "justify-start"} animate-in fade-in slide-in-from-bottom-2 duration-300`}
             >
               {msg.role === "student" && (
-                <div className="w-8 h-8 rounded-full bg-white/80 backdrop-blur-sm border border-[#E5E2D9]/50 flex items-center justify-center shrink-0 mr-2.5 self-end shadow-sm">
-                  <span className="text-[10px] font-bold text-[#706C61]">{studentName.charAt(0)}</span>
+                <div className="w-8 h-8 rounded-full bg-white/80 backdrop-blur-sm border border-[#E5E2D9]/50 overflow-hidden shrink-0 mr-2.5 self-end shadow-sm">
+                  <img
+                    src={`/avatars/${studentName}.png`}
+                    alt={studentName}
+                    className="w-full h-full object-cover rounded-full"
+                    onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }}
+                  />
                 </div>
               )}
               <div
@@ -183,10 +192,30 @@ export default function ChatPanel({ isPaused, onTogglePause, onEnd, onEmotionCha
               </div>
             </div>
           ))}
-          {isThinking && (
+          {streamingContent !== null && (
+            <div className="flex justify-start animate-in fade-in duration-200">
+              <div className="w-8 h-8 rounded-full bg-white/80 backdrop-blur-sm border border-[#E5E2D9]/50 overflow-hidden shrink-0 mr-2.5 self-end shadow-sm">
+                <img
+                  src={`/avatars/${studentName}.png`}
+                  alt={studentName}
+                  className="w-full h-full object-cover rounded-full"
+                  onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }}
+                />
+              </div>
+              <div className="max-w-[65%] px-5 py-3 text-[15px] font-medium leading-relaxed shadow-lg bg-white/85 backdrop-blur-sm text-[#3D3831] rounded-[18px] rounded-tl-sm border border-white/50">
+                <p>{streamingContent}<span className="inline-block w-0.5 h-4 bg-[#A09C94] ml-0.5 animate-pulse align-middle" /></p>
+              </div>
+            </div>
+          )}
+          {isThinking && streamingContent === null && (
             <div className="flex justify-start animate-in fade-in duration-300">
-              <div className="w-8 h-8 rounded-full bg-white/80 backdrop-blur-sm border border-[#E5E2D9]/50 flex items-center justify-center shrink-0 mr-2.5 self-end shadow-sm">
-                <Loader2 className="w-3.5 h-3.5 text-[#706C61] animate-spin" />
+              <div className="w-8 h-8 rounded-full bg-white/80 backdrop-blur-sm border border-[#E5E2D9]/50 overflow-hidden shrink-0 mr-2.5 self-end shadow-sm flex items-center justify-center">
+                <img
+                  src={`/avatars/${studentName}.png`}
+                  alt={studentName}
+                  className="w-full h-full object-cover rounded-full"
+                  onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }}
+                />
               </div>
               <div className="bg-white/80 backdrop-blur-sm border border-white/50 px-5 py-3 rounded-[18px] rounded-tl-sm shadow-lg">
                 <div className="flex gap-1.5">
@@ -197,7 +226,9 @@ export default function ChatPanel({ isPaused, onTogglePause, onEnd, onEmotionCha
               </div>
             </div>
           )}
-          <div ref={bottomRef} />
+              <div ref={bottomRef} />
+            </div>
+          </div>
         </div>
       </div>
 

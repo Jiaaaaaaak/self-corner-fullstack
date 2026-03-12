@@ -3,11 +3,9 @@ import { useNavigate, useLocation } from "react-router-dom";
 import AppLayout from "@/components/AppLayout";
 import classroomBg from "@/assets/classroom-background.png";
 import {
-  Dices,
   HelpCircle,
   AlertCircle,
   Play,
-  RotateCcw,
   Mic,
   Loader2,
 } from "lucide-react";
@@ -16,45 +14,24 @@ import {
   DialogContent,
 } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
-import ScenarioCard from "@/components/chatroom/ScenarioCard";
 import ScenarioDetail from "@/components/chatroom/ScenarioDetail";
-import RandomConfirm from "@/components/chatroom/RandomConfirm";
 import ChatPanel from "@/components/chatroom/ChatPanel";
+import SkillTreeMap from "@/components/chatroom/SkillTreeMap";
+import SoulCards from "@/components/chatroom/SoulCards";
+import StudentProfileSelect, { type StudentProfile } from "@/components/chatroom/StudentProfileSelect";
+import { buildCompetencyGroups, type Scenario, type CompetencyGroup } from "@/lib/collectionData";
 import api from "@/lib/api";
 import { useAuthStore } from "@/lib/auth";
-
-interface Scenario {
-  id: number;
-  title: string;
-  tag: string;
-  emoji: string;
-  description: string;
-}
-
-// Fallback scenarios if API is unavailable
-const fallbackScenarios: Scenario[] = [
-  { id: 1, title: "考場失利後的自責", tag: "自我覺察", emoji: "📝", description: "學生在一次重要考試中表現不佳，感到極度自責和沮喪。" },
-  { id: 2, title: "分組被落單的窘迫", tag: "社會覺察", emoji: "👥", description: "班上分組活動時，有一位學生總是最後一個被選或直接被遺漏。" },
-  { id: 3, title: "被當眾誤解的憤怒", tag: "自我管理", emoji: "😤", description: "學生在課堂上被同學誤解並當眾指責，他非常憤怒，差點失控動手。" },
-  { id: 4, title: "好朋友吵架的糾結", tag: "人際技巧", emoji: "🤝", description: "兩個好朋友因為一件小事吵架了，其中一位來找你傾訴。" },
-  { id: 5, title: "面對新環境的焦慮", tag: "自我覺察", emoji: "🌱", description: "學生剛轉學到新班級，對陌生的環境和同學感到極度焦慮。" },
-  { id: 6, title: "承認作弊後的羞愧", tag: "負責決策", emoji: "💭", description: "學生在考試中作弊被發現，他感到非常羞愧，不知道如何面對老師和同學。" },
-];
-
-const DISPLAY_COUNT = 6;
-const TAGS = ["全部", "自我覺察", "自我管理", "社會覺察", "人際技巧", "負責決策"];
-
-function pickRandom<T>(pool: T[], count: number): T[] {
-  const shuffled = [...pool].sort(() => Math.random() - 0.5);
-  return shuffled.slice(0, count);
-}
 
 export default function Chatroom() {
   const navigate = useNavigate();
   const location = useLocation();
   const { setSessionUuid } = useAuthStore();
 
-  const [allScenarios, setAllScenarios] = useState<Scenario[]>(fallbackScenarios);
+  const [allScenarios, setAllScenarios] = useState<Scenario[]>([]);
+  const [competencyGroups, setCompetencyGroups] = useState<CompetencyGroup[]>([]);
+  const [allPersonalities, setAllPersonalities] = useState<any[]>([]);
+  const [allGradeLevels, setAllGradeLevels] = useState<any[]>([]);
   const [isStarted, setIsStarted] = useState(false);
   const [isPaused, setIsPaused] = useState(false);
   const [isEnding, setIsEnding] = useState(false);
@@ -63,13 +40,13 @@ export default function Chatroom() {
   const [studentName, setStudentName] = useState("小明");
   const [selectedScenarioId, setSelectedScenarioId] = useState<number | null>(null);
   const [activeScenario, setActiveScenario] = useState<Scenario | null>(null);
-  const [activeTag, setActiveTag] = useState("全部");
-  const [showRandomConfirm, setShowRandomConfirm] = useState(false);
+  const [pendingScenario, setPendingScenario] = useState<Scenario | null>(null);
+  const [studentProfile, setStudentProfile] = useState<StudentProfile | null>(null);
   const [helpOpen, setHelpOpen] = useState(false);
   const [voicePromptOpen, setVoicePromptOpen] = useState(false);
+  const [soulCardsOpen, setSoulCardsOpen] = useState(false);
   const [livekitToken, setLivekitToken] = useState<string | null>(null);
   const [currentSessionUuid, setCurrentSessionUuid] = useState<string | null>(null);
-  const [displayedScenarios, setDisplayedScenarios] = useState<Scenario[]>([]);
 
   // Load scenarios from API
   useEffect(() => {
@@ -80,13 +57,24 @@ export default function Chatroom() {
         tag: s.sel_category ?? "自我覺察",
         emoji: s.emoji ?? "📝",
         description: s.description ?? "",
+        short_desc: s.short_desc ?? undefined,
+        tags: s.tags ?? [],
+        practice_count: s.practice_count ?? 0,
+        estimated_minutes: s.estimated_minutes ?? 10,
       }));
-      if (data.length > 0) {
-        setAllScenarios(data);
-      }
+      setAllScenarios(data);
+      setCompetencyGroups(buildCompetencyGroups(data));
     }).catch(() => {
-      // allScenarios remains as fallbackScenarios; activeTag effect will set displayedScenarios
+      // leave empty — SkillTreeMap will show empty state
     });
+
+    api.get("/personalities").then((res) => {
+      setAllPersonalities(res.data);
+    }).catch(() => {});
+
+    api.get("/grade-levels").then((res) => {
+      setAllGradeLevels(res.data);
+    }).catch(() => {});
   }, []);
 
   // Timer Effect
@@ -103,8 +91,8 @@ export default function Chatroom() {
   // Handle Retry logic
   useEffect(() => {
     const retryId = location.state?.retryScenarioId;
-    if (retryId) {
-      const scenario = allScenarios.find(s => s.id === retryId);
+    if (retryId && allScenarios.length > 0) {
+      const scenario = allScenarios.find((s) => s.id === retryId);
       if (scenario) {
         setActiveScenario(scenario);
         setIsStarted(true);
@@ -120,34 +108,25 @@ export default function Chatroom() {
     return `${mins.toString().padStart(2, "0")}:${secs.toString().padStart(2, "0")}`;
   };
 
-  // Filter displayed scenarios by activeTag
-  useEffect(() => {
-    if (allScenarios.length === 0) return;
-    if (activeTag === "全部") {
-      setDisplayedScenarios(pickRandom(allScenarios, Math.min(DISPLAY_COUNT, allScenarios.length)));
-    } else {
-      const filtered = allScenarios.filter((s) => s.tag === activeTag);
-      setDisplayedScenarios(filtered.slice(0, DISPLAY_COUNT));
-    }
-  }, [activeTag, allScenarios]);
-
   const handleCardClick = (id: number) => setSelectedScenarioId(id);
-  const handleRandomClick = () => setShowRandomConfirm(true);
-  const handleRefresh = () => {
-    if (activeTag === "全部") {
-      setDisplayedScenarios(pickRandom(allScenarios, Math.min(DISPLAY_COUNT, allScenarios.length)));
-    } else {
-      const filtered = allScenarios.filter((s) => s.tag === activeTag);
-      setDisplayedScenarios(filtered.slice(0, DISPLAY_COUNT));
-    }
-  };
 
   const handleStart = (scenario?: Scenario) => {
-    const chosen = scenario || allScenarios.find(s => s.id === selectedScenarioId) || pickRandom(allScenarios, 1)[0];
-    setActiveScenario(chosen);
+    const chosen = scenario || allScenarios.find((s) => s.id === selectedScenarioId);
+    if (!chosen) return;
+    setPendingScenario(chosen);
     setSelectedScenarioId(null);
-    setShowRandomConfirm(false);
+  };
+
+  const handleProfileConfirm = (profile: StudentProfile) => {
+    setStudentProfile(profile);
+    setActiveScenario(pendingScenario);
+    setPendingScenario(null);
     setVoicePromptOpen(true);
+  };
+
+  const handleProfileBack = () => {
+    setPendingScenario(null);
+    setSelectedScenarioId(null);
   };
 
   const handleVoiceConfirm = async (_enableVoice: boolean) => {
@@ -155,8 +134,12 @@ export default function Chatroom() {
     if (!activeScenario) return;
 
     try {
-      // Create session
-      const sessionRes = await api.post("/session/create", { scenario_id: activeScenario.id });
+      const body: any = { scenario_id: activeScenario.id };
+      if (studentProfile) {
+        body.personality_key = studentProfile.personality;
+        body.grade_id = studentProfile.grade;
+      }
+      const sessionRes = await api.post("/session/create", body);
       const uuid: string = sessionRes.data.session_uuid;
       setCurrentSessionUuid(uuid);
       setSessionUuid(uuid);
@@ -164,13 +147,11 @@ export default function Chatroom() {
         setStudentName(sessionRes.data.student_name);
       }
 
-      // Get LiveKit token
       const tokenRes = await api.post("/livekit/token", { session_uuid: uuid });
       setLivekitToken(tokenRes.data.token);
     } catch (err) {
       console.error("[Chatroom] Failed to create session or get token:", err);
       alert("無法建立練習，請重新整理頁面後再試。");
-      setIsStarted(false);
       return;
     }
 
@@ -181,7 +162,6 @@ export default function Chatroom() {
 
   const handleCloseDetail = () => {
     setSelectedScenarioId(null);
-    setShowRandomConfirm(false);
   };
 
   const handleTogglePause = () => setIsPaused(!isPaused);
@@ -198,14 +178,23 @@ export default function Chatroom() {
     navigate("/feedback", { state: { currentScenarioId: activeScenario?.id } });
   };
 
+  const EMOTION_FILENAME: Record<string, string> = {
+    neutral: "中性",
+    angry: "憤怒",
+    sad: "悲傷",
+    thinking: "好奇",
+  };
+
   const renderStudentAvatar = () => {
-    if (isPaused) return "⏸️";
-    switch (studentEmotion) {
-      case "angry": return "😤";
-      case "sad": return "🥺";
-      case "thinking": return "🤔";
-      default: return "🧑‍🎓";
-    }
+    const filename = EMOTION_FILENAME[isPaused ? "neutral" : studentEmotion] ?? "中性";
+    return (
+      <img
+        src={`/img/students/${studentName}_${filename}.png`}
+        alt={studentName}
+        className="w-full h-full object-cover"
+        onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }}
+      />
+    );
   };
 
   const emotionLabel = () => {
@@ -217,7 +206,6 @@ export default function Chatroom() {
     }
   };
 
-  // Pass session info to sidebar via AppLayout
   const sessionInfo = isStarted && activeScenario ? {
     scenarioTitle: activeScenario.title,
     formattedTime: formatTime(elapsedSeconds),
@@ -232,39 +220,37 @@ export default function Chatroom() {
         {/* Top Header Toolbar */}
         <header className="h-14 bg-white/95 backdrop-blur-sm border-b border-[#E5E2D9] flex items-center justify-between px-6 shrink-0 z-20">
           <div className="flex items-center gap-4 pl-12 lg:pl-0">
-             {isStarted ? (
-               <h2 className="text-sm font-bold text-[#3D3831] truncate max-w-[500px]">
-                 {activeScenario?.title}——<span className="font-normal text-[#706C61]">「{activeScenario?.description}」</span>
-               </h2>
-             ) : (
-               <>
-                 <Badge variant="outline" className="font-heading text-[10px] font-bold tracking-widest uppercase border-primary/30 text-primary">
-                   Scenario Selection
-                 </Badge>
-                 <h2 className="text-sm font-bold text-[#3D3831] truncate max-w-[200px] md:max-w-none">
-                   探索練習情境
-                 </h2>
-               </>
-             )}
+            {isStarted ? (
+              <h2 className="text-sm font-bold text-[#3D3831] truncate max-w-[500px]">
+                {activeScenario?.title}——<span className="font-normal text-[#706C61]">「{activeScenario?.short_desc ?? activeScenario?.description}」</span>
+              </h2>
+            ) : (
+              <>
+                <Badge variant="outline" className="font-heading text-[10px] font-bold tracking-widest uppercase border-primary/30 text-primary">
+                  Growth Map
+                </Badge>
+                <h2 className="text-sm font-bold text-[#3D3831] truncate max-w-[200px] md:max-w-none">
+                  對話成長練習
+                </h2>
+              </>
+            )}
           </div>
 
           <div className="flex items-center gap-4">
-             {/* Emotion status indicator */}
-             {isStarted && (
-               <div className="flex items-center gap-2">
-                 <div className={`w-2 h-2 rounded-full ${isPaused ? "bg-[#A09C94]" : "bg-green-500 animate-pulse"}`} />
-                 <span className="text-sm font-medium text-[#706C61]">
-                   {emotionLabel()}
-                 </span>
-               </div>
-             )}
-
-             <button
-               onClick={() => setHelpOpen(true)}
-               className="w-9 h-9 border border-[#E5E2D9] flex items-center justify-center rounded-lg hover:bg-[#FAF9F6] transition-all group"
-             >
-               <HelpCircle className="w-4.5 h-4.5 text-[#A09C94] group-hover:text-primary transition-colors" />
-             </button>
+            {isStarted && (
+              <div className="flex items-center gap-2">
+                <div className={`w-2 h-2 rounded-full ${isPaused ? "bg-[#A09C94]" : "bg-green-500 animate-pulse"}`} />
+                <span className="text-sm font-medium text-[#706C61]">
+                  {emotionLabel()}
+                </span>
+              </div>
+            )}
+            <button
+              onClick={() => setHelpOpen(true)}
+              className="w-9 h-9 border border-[#E5E2D9] flex items-center justify-center rounded-lg hover:bg-[#FAF9F6] transition-all group"
+            >
+              <HelpCircle className="w-4.5 h-4.5 text-[#A09C94] group-hover:text-primary transition-colors" />
+            </button>
           </div>
         </header>
 
@@ -280,17 +266,22 @@ export default function Chatroom() {
             </div>
           )}
 
-          {/* Student avatar overlay - top left area */}
+          {/* Student avatar overlay */}
           {isStarted && (
             <div className="absolute top-6 left-8 z-20 flex items-center gap-4 animate-in fade-in duration-500">
-              <div className="w-14 h-14 rounded-full bg-white/90 backdrop-blur-sm border-2 border-white shadow-xl flex items-center justify-center text-3xl">
+              <div className="w-14 h-14 rounded-full bg-white/90 backdrop-blur-sm border-2 border-white shadow-xl overflow-hidden flex items-center justify-center">
                 {renderStudentAvatar()}
               </div>
-              <div className="flex flex-col">
+              <div className="flex flex-col gap-0.5">
                 <span className="font-heading text-base font-bold text-white drop-shadow-md">
-                  {studentName}
+                  {studentProfile ? `${allGradeLevels.find((g) => g.id === studentProfile.grade)?.label ?? ""}學生` : studentName}
                 </span>
-                <div className="flex items-center gap-1.5">
+                {studentProfile && (
+                  <span className="text-[11px] font-bold text-white/90 drop-shadow-sm bg-white/20 backdrop-blur-sm px-2 py-0.5 rounded-full w-fit">
+                    {studentProfile.personality}
+                  </span>
+                )}
+                <div className="flex items-center gap-1.5 mt-0.5">
                   <div className={`w-1.5 h-1.5 rounded-full ${isPaused ? "bg-[#A09C94]" : "bg-primary animate-pulse"}`} />
                   <span className="text-xs font-medium text-white/80 drop-shadow-sm">
                     {emotionLabel()}
@@ -300,7 +291,7 @@ export default function Chatroom() {
             </div>
           )}
 
-          {/* ENDING / ANALYSIS OVERLAY */}
+          {/* ENDING OVERLAY */}
           {isEnding && (
             <div className="absolute inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center animate-in fade-in duration-300">
               <div className="bg-white/95 backdrop-blur-md border border-[#E5E2D9] p-10 rounded-2xl shadow-2xl flex flex-col items-center gap-6 max-w-sm text-center">
@@ -310,7 +301,7 @@ export default function Chatroom() {
                 <div className="flex flex-col gap-2">
                   <h3 className="font-heading text-2xl font-bold text-[#3D3831]">分析對話中...</h3>
                   <p className="text-sm text-[#706C61] font-medium leading-relaxed">
-                    AI 教練正在評估您的對話表現，<br/>請稍候片刻。
+                    AI 教練正在評估您的對話表現，<br />請稍候片刻。
                   </p>
                 </div>
               </div>
@@ -322,7 +313,7 @@ export default function Chatroom() {
             <div className="absolute inset-0 z-40 bg-black/40 backdrop-blur-sm flex items-center justify-center animate-in fade-in duration-300">
               <div className="bg-white/95 backdrop-blur-md border border-[#E5E2D9] p-10 rounded-2xl shadow-2xl flex flex-col items-center gap-6 max-w-sm text-center">
                 <div className="w-16 h-16 bg-[#FAF9F6] rounded-full flex items-center justify-center">
-                   <AlertCircle className="w-8 h-8 text-[#A09C94]" />
+                  <AlertCircle className="w-8 h-8 text-[#A09C94]" />
                 </div>
                 <div className="flex flex-col gap-2">
                   <h3 className="font-heading text-2xl font-bold text-[#3D3831]">對話已暫停</h3>
@@ -341,78 +332,40 @@ export default function Chatroom() {
             </div>
           )}
 
-          {/* 1. SCENARIO SELECTION VIEW */}
-          {!isStarted && !selectedScenarioId && !showRandomConfirm && (
-            <div className="h-full overflow-y-auto px-6 py-10 md:px-12 animate-in fade-in duration-500 bg-[#FAF9F6]">
-               <div className="max-w-5xl mx-auto flex flex-col gap-10">
-                 <div className="flex flex-col gap-6">
-                    <div className="flex items-center justify-between">
-                      <div className="flex flex-col gap-1">
-                        <span className="font-heading text-[10px] font-bold tracking-[0.2em] text-primary uppercase">Scenario Pool</span>
-                        <h3 className="font-heading text-2xl font-bold text-[#3D3831]">選擇一個練習情境</h3>
-                      </div>
-                      <button
-                        onClick={handleRefresh}
-                        className="flex items-center gap-2 px-4 py-2 border border-[#E5E2D9] rounded-lg text-sm font-bold text-[#706C61] hover:bg-white hover:text-primary transition-all group shadow-sm"
-                      >
-                        <RotateCcw className="w-4 h-4 group-hover:rotate-180 transition-transform duration-500" />
-                        換一批
-                      </button>
-                    </div>
-
-                    <div className="flex flex-wrap gap-2">
-                      {TAGS.map(tag => (
-                        <button
-                          key={tag}
-                          onClick={() => setActiveTag(tag)}
-                          className={`px-4 py-1.5 rounded-full text-[12px] font-bold tracking-wide transition-all ${
-                            activeTag === tag
-                            ? "bg-[#3D3831] text-white shadow-md"
-                            : "bg-white border border-[#E5E2D9] text-[#706C61] hover:border-[#3D3831]"
-                          }`}
-                        >
-                          {tag}
-                        </button>
-                      ))}
-                    </div>
-                 </div>
-
-                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                    {displayedScenarios.map((scenario) => (
-                      <ScenarioCard key={scenario.id} scenario={scenario} onClick={handleCardClick} />
-                    ))}
-                    <button
-                      onClick={handleRandomClick}
-                      className="group flex flex-col items-center justify-center gap-4 p-8 border-2 border-dashed border-primary/30 rounded-2xl bg-white hover:border-primary hover:bg-primary/5 hover:shadow-xl transition-all duration-300"
-                    >
-                      <div className="w-16 h-16 bg-primary/10 rounded-full flex items-center justify-center group-hover:scale-110 transition-transform">
-                        <Dices className="w-8 h-8 text-primary" />
-                      </div>
-                      <div className="flex flex-col gap-1">
-                        <span className="font-heading text-lg font-bold text-[#3D3831]">隨機挑戰</span>
-                        <p className="text-xs text-[#706C61] font-medium leading-relaxed">
-                          由系統隨機挑選一個<br/>未知情境進行練習
-                        </p>
-                      </div>
-                    </button>
-                 </div>
-               </div>
-            </div>
-          )}
-
-          {/* 2. DETAIL / CONFIRM VIEWS */}
-          {!isStarted && selectedScenarioId && (
-            <ScenarioDetail
-              scenario={allScenarios.find(s => s.id === selectedScenarioId)!}
-              onClose={handleCloseDetail}
-              onStart={handleStart}
+          {/* 1. SKILL TREE MAP */}
+          {!isStarted && !pendingScenario && !selectedScenarioId && (
+            <SkillTreeMap
+              groups={competencyGroups}
+              onSelectScenario={handleCardClick}
+              onOpenSoulCards={() => setSoulCardsOpen(true)}
             />
           )}
-          {!isStarted && showRandomConfirm && (
-            <RandomConfirm onClose={handleCloseDetail} onStart={() => handleStart()} />
+
+          {/* 2. DETAIL VIEW */}
+          {!isStarted && selectedScenarioId && (() => {
+            const found = allScenarios.find((s) => s.id === selectedScenarioId);
+            if (!found) return null;
+            return (
+              <ScenarioDetail
+                scenario={found}
+                onClose={handleCloseDetail}
+                onStart={handleStart}
+              />
+            );
+          })()}
+
+          {/* 2.5 STUDENT PROFILE SELECTION */}
+          {!isStarted && pendingScenario && (
+            <StudentProfileSelect
+              onConfirm={handleProfileConfirm}
+              onBack={handleProfileBack}
+              allowedPersonalityTags={pendingScenario?.tags}
+              personalities={allPersonalities}
+              gradeLevels={allGradeLevels}
+            />
           )}
 
-          {/* 3. ACTIVE SESSION VIEW - just ChatPanel over background */}
+          {/* 3. ACTIVE SESSION VIEW */}
           {isStarted && (
             <ChatPanel
               isPaused={isPaused}
@@ -425,6 +378,36 @@ export default function Chatroom() {
           )}
         </div>
       </div>
+
+      {/* Soul Cards Overlay */}
+      <SoulCards
+        scenarios={allScenarios}
+        open={soulCardsOpen}
+        onClose={() => setSoulCardsOpen(false)}
+        onStart={async (scenario) => {
+          setSoulCardsOpen(false);
+          setActiveScenario(scenario);
+          setStudentProfile(null);
+          try {
+            const sessionRes = await api.post("/session/create", { scenario_id: scenario.id });
+            const uuid: string = sessionRes.data.session_uuid;
+            setCurrentSessionUuid(uuid);
+            setSessionUuid(uuid);
+            if (sessionRes.data.student_name) {
+              setStudentName(sessionRes.data.student_name);
+            }
+            const tokenRes = await api.post("/livekit/token", { session_uuid: uuid });
+            setLivekitToken(tokenRes.data.token);
+          } catch (err) {
+            console.error("[Chatroom] SoulCards session create failed:", err);
+            alert("無法建立練習，請重新整理頁面後再試。");
+            return;
+          }
+          setIsStarted(true);
+          setIsPaused(false);
+          setElapsedSeconds(0);
+        }}
+      />
 
       {/* Voice Prompt Dialog */}
       <Dialog open={voicePromptOpen} onOpenChange={setVoicePromptOpen}>
@@ -462,30 +445,30 @@ export default function Chatroom() {
       <Dialog open={helpOpen} onOpenChange={setHelpOpen}>
         <DialogContent className="sm:max-w-md border-none p-0 overflow-hidden rounded-2xl shadow-2xl">
           <div className="bg-[#3D3831] p-6 text-white flex items-center gap-3">
-             <div className="w-10 h-10 bg-primary rounded-xl flex items-center justify-center shadow-lg">
-                <HelpCircle className="w-6 h-6 text-white" />
-             </div>
-             <div>
-                <h2 className="font-heading text-xl font-bold">對話練習指南</h2>
-                <p className="text-xs text-white/60 font-medium">Safe Harbor & Consistent Communication</p>
-             </div>
+            <div className="w-10 h-10 bg-primary rounded-xl flex items-center justify-center shadow-lg">
+              <HelpCircle className="w-6 h-6 text-white" />
+            </div>
+            <div>
+              <h2 className="font-heading text-xl font-bold">對話練習指南</h2>
+              <p className="text-xs text-white/60 font-medium">Safe Harbor & Consistent Communication</p>
+            </div>
           </div>
           <div className="p-8 space-y-6">
             <div className="space-y-4">
-               {[
-                 { id: 1, text: "選擇情境：從情境池中挑選一個感興趣或想精進的對話挑戰。" },
-                 { id: 2, text: "模擬互動：使用語音或文字，像平常對話一樣與 AI 學生互動。" },
-                 { id: 3, text: "覺察情緒：觀察學生的表情與情緒標籤，調整您的溝通姿態。" },
-                 { id: 4, text: "暫停反思：若感到壓力或不知如何回應，隨時按暫停深呼吸。" },
-                 { id: 5, text: "專家回饋：結束後查看雷達圖指標，學習「一致性」的表達方式。" }
-               ].map(item => (
-                 <div key={item.id} className="flex gap-4 group">
-                    <span className="w-6 h-6 shrink-0 bg-[#FAF9F6] border border-[#E5E2D9] rounded-full flex items-center justify-center text-[10px] font-bold text-[#706C61] group-hover:bg-primary group-hover:text-white group-hover:border-primary transition-all">
-                      {item.id}
-                    </span>
-                    <p className="text-sm text-[#706C61] font-medium leading-relaxed">{item.text}</p>
-                 </div>
-               ))}
+              {[
+                { id: 1, text: "選擇情境：從成長地圖中挑選一個感興趣或想精進的對話挑戰，或抽取隨機牌卡。" },
+                { id: 2, text: "設定學生：選擇學生個性與年級，打造更真實的對話情境。" },
+                { id: 3, text: "模擬互動：使用語音或文字，像平常對話一樣與 AI 學生互動。" },
+                { id: 4, text: "覺察情緒：觀察學生的表情與情緒標籤，調整您的溝通姿態。" },
+                { id: 5, text: "專家回饋：結束後查看雷達圖指標，學習「一致性」的表達方式。" },
+              ].map((item) => (
+                <div key={item.id} className="flex gap-4 group">
+                  <span className="w-6 h-6 shrink-0 bg-[#FAF9F6] border border-[#E5E2D9] rounded-full flex items-center justify-center text-[10px] font-bold text-[#706C61] group-hover:bg-primary group-hover:text-white group-hover:border-primary transition-all">
+                    {item.id}
+                  </span>
+                  <p className="text-sm text-[#706C61] font-medium leading-relaxed">{item.text}</p>
+                </div>
+              ))}
             </div>
             <button
               onClick={() => setHelpOpen(false)}

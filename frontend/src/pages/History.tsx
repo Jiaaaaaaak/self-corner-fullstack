@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import AppLayout from "@/components/AppLayout";
-import { Search, Calendar, ChevronDown, ChevronRight, Filter, Loader2 } from "lucide-react";
+import { Search, Calendar, ChevronDown, ChevronRight, Filter, Loader2, X } from "lucide-react";
 import api from "@/lib/api";
 import { useAuthStore } from "@/lib/auth";
 
@@ -40,10 +40,11 @@ const SCENARIO_EMOJI: Record<string, string> = {
 
 export default function History() {
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
   const { setSessionUuid } = useAuthStore();
   const [items, setItems] = useState<HistoryItem[]>([]);
   const [loading, setLoading] = useState(true);
-  const [searchQuery, setSearchQuery] = useState("");
+  const [searchQuery, setSearchQuery] = useState(searchParams.get("scenario") ?? "");
 
   useEffect(() => {
     api.get("/history")
@@ -78,9 +79,24 @@ export default function History() {
               type="text"
               placeholder="搜尋情境、日期或關鍵字..."
               value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
+              onChange={(e) => {
+                setSearchQuery(e.target.value);
+                if (e.target.value) {
+                  setSearchParams({ scenario: e.target.value });
+                } else {
+                  setSearchParams({});
+                }
+              }}
               className="flex-1 text-sm bg-transparent outline-none placeholder:text-[#A09C94] text-[#3D3831] font-medium"
             />
+            {searchQuery && (
+              <button
+                onClick={() => { setSearchQuery(""); setSearchParams({}); }}
+                className="w-5 h-5 rounded-full bg-[#A09C94]/20 hover:bg-[#A09C94]/40 flex items-center justify-center transition-colors"
+              >
+                <X className="w-3 h-3 text-[#706C61]" />
+              </button>
+            )}
           </div>
         </div>
 
@@ -96,6 +112,15 @@ export default function History() {
             所有情緒類型
             <ChevronDown className="w-3.5 h-3.5" />
           </button>
+          {searchParams.get("scenario") && (
+            <button
+              onClick={() => { setSearchQuery(""); setSearchParams({}); }}
+              className="flex items-center gap-1.5 px-3 py-1.5 bg-primary/10 border border-primary/20 rounded-lg text-[12px] font-bold text-primary hover:bg-primary/20 transition-all"
+            >
+              <X className="w-3 h-3" />
+              清除篩選：{searchParams.get("scenario")}
+            </button>
+          )}
           <div className="flex-1 min-w-[20px]" />
           <span className="text-[12px] font-bold text-[#A09C94] uppercase tracking-wider">
             Found {filtered.length} Sessions

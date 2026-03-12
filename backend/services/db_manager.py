@@ -12,7 +12,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from models import (
     User, RefreshToken, Session, Scenario, StudentPersonality,
-    Conversation, Transcript, EmotionLog, FeedbackReport, AgentType,
+    Conversation, Transcript, EmotionLog, FeedbackReport, AgentType, GradeLevel,
     EmailVerificationToken, PasswordResetToken
 )
 
@@ -187,6 +187,66 @@ class DBManager:
         )
         return result.scalar_one_or_none()
 
+    async def get_personality_by_tag(self, tag: str) -> Optional[StudentPersonality]:
+        result = await self.db.execute(
+            select(StudentPersonality).where(StudentPersonality.personality_tags == tag)
+        )
+        return result.scalar_one_or_none()
+
+    async def get_all_personalities(self) -> List[StudentPersonality]:
+        result = await self.db.execute(
+            select(StudentPersonality).order_by(StudentPersonality.id)
+        )
+        return list(result.scalars().all())
+
+    # =========================================================================
+    # GradeLevel CRUD
+    # =========================================================================
+
+    async def get_all_grade_levels(self) -> List[GradeLevel]:
+        result = await self.db.execute(
+            select(GradeLevel).order_by(GradeLevel.sort_order)
+        )
+        return list(result.scalars().all())
+
+    # =========================================================================
+    # Scenario Stats
+    # =========================================================================
+
+    async def get_scenario_stats(self) -> Dict[int, Dict]:
+        """回傳每個 scenario 的練習人數與平均時長（分鐘）。"""
+        # practice_count: 所有 sessions 數量（不論有無 report）
+        count_result = await self.db.execute(
+            select(Session.scenario_id, func.count(Session.id).label("cnt"))
+            .where(Session.scenario_id.isnot(None))
+            .group_by(Session.scenario_id)
+        )
+        counts = {row.scenario_id: row.cnt for row in count_result}
+
+        # avg_minutes: 有 feedback_report 且 ended_at 不為 null 的 sessions 的平均時長
+        avg_result = await self.db.execute(
+            select(
+                Session.scenario_id,
+                func.avg(
+                    func.extract("epoch", Session.ended_at - Session.started_at) / 60
+                ).label("avg_min")
+            )
+            .join(FeedbackReport, FeedbackReport.session_id == Session.id)
+            .where(Session.ended_at.isnot(None))
+            .where(Session.scenario_id.isnot(None))
+            .group_by(Session.scenario_id)
+        )
+        avgs = {row.scenario_id: row.avg_min for row in avg_result}
+
+        stats: Dict[int, Dict] = {}
+        for sid, cnt in counts.items():
+            avg = avgs.get(sid)
+            stats[sid] = {
+                "practice_count": cnt,
+                "estimated_minutes": round(avg) if avg is not None else 10,
+            }
+        return stats
+
     # =========================================================================
     # Session CRUD
     # =========================================================================
@@ -198,6 +258,7 @@ class DBManager:
         personality_id: Optional[int] = None,
         title: Optional[str] = None,
         livekit_room_name: Optional[str] = None,
+        session_metadata: Optional[Dict[str, Any]] = None,
     ) -> Session:
         session = Session(
             session_uuid=str(uuid.uuid4()),
@@ -208,6 +269,7 @@ class DBManager:
             livekit_room_name=livekit_room_name,
             is_active=True,
             started_at=datetime.utcnow(),
+            session_metadata=session_metadata,
         )
         self.db.add(session)
         await self.db.flush()
