@@ -267,9 +267,9 @@ export default function SoulCards({ scenarios, open, onClose, onStart }: SoulCar
   const titleText = {
     idle: "🃏 隨機牌卡",
     dealing: "🃏 發牌中...",
-    picking: "✨ 選擇你的命運牌卡...",
+    picking: "✨ 選擇你的情境卡...",
     revealing: "✨ 揭曉中...",
-    revealed: "🌟 命運牌卡已揭曉",
+    revealed: "🌟 情境卡已揭曉",
   }[gameState];
 
   return createPortal(
@@ -318,7 +318,7 @@ export default function SoulCards({ scenarios, open, onClose, onStart }: SoulCar
             className="text-xs font-medium"
             style={{ color: "hsl(var(--primary-foreground)/0.6)" }}
           >
-            點擊一張牌卡來揭曉你的命運
+            點擊一張牌卡來揭曉你的情境
           </span>
         )}
       </div>

@@ -70,22 +70,20 @@ export default function SkillTreeMap({ groups, onSelectScenario, onOpenSoulCards
           <div className="flex items-center gap-0.5 bg-muted rounded-xl p-1">
             <button
               onClick={() => setViewMode("grid")}
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
-                viewMode === "grid"
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${viewMode === "grid"
                   ? "bg-background text-foreground shadow-sm"
                   : "text-muted-foreground hover:bg-background/60"
-              }`}
+                }`}
             >
               <LayoutGrid className="w-3.5 h-3.5" />
               <span className="hidden sm:inline">卡片</span>
             </button>
             <button
               onClick={() => setViewMode("list")}
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
-                viewMode === "list"
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${viewMode === "list"
                   ? "bg-background text-foreground shadow-sm"
                   : "text-muted-foreground hover:bg-background/60"
-              }`}
+                }`}
             >
               <List className="w-3.5 h-3.5" />
               <span className="hidden sm:inline">列表</span>
@@ -98,7 +96,7 @@ export default function SkillTreeMap({ groups, onSelectScenario, onOpenSoulCards
             className="shrink-0 flex items-center gap-2 px-4 py-2 rounded-xl bg-gradient-to-br from-primary to-primary/80 text-primary-foreground shadow-lg hover:shadow-xl hover:scale-105 transition-all duration-300 group"
           >
             <span className="text-lg">🃏</span>
-            <span className="text-xs font-bold tracking-wide hidden sm:inline">隨機牌卡</span>
+            <span className="text-xs font-bold tracking-wide hidden sm:inline">隨機情境卡</span>
             <Sparkles className="w-3.5 h-3.5 opacity-60 group-hover:opacity-100 transition-opacity" />
           </button>
         </div>
@@ -107,11 +105,10 @@ export default function SkillTreeMap({ groups, onSelectScenario, onOpenSoulCards
         <div className="flex items-center gap-2 flex-wrap">
           <button
             onClick={() => setActiveFilter(null)}
-            className={`px-3 py-1.5 rounded-full text-xs font-bold transition-all duration-200 ${
-              !activeFilter
+            className={`px-3 py-1.5 rounded-full text-xs font-bold transition-all duration-200 ${!activeFilter
                 ? "bg-foreground text-background shadow-md"
                 : "border border-border text-muted-foreground hover:bg-muted"
-            }`}
+              }`}
           >
             全部
           </button>
@@ -119,11 +116,10 @@ export default function SkillTreeMap({ groups, onSelectScenario, onOpenSoulCards
             <button
               key={group.id}
               onClick={() => setActiveFilter(activeFilter === group.id ? null : group.id)}
-              className={`px-3 py-1.5 rounded-full text-xs font-bold transition-all duration-200 flex items-center gap-1.5 ${
-                activeFilter === group.id
+              className={`px-3 py-1.5 rounded-full text-xs font-bold transition-all duration-200 flex items-center gap-1.5 ${activeFilter === group.id
                   ? "text-card shadow-md"
                   : "border border-border text-muted-foreground hover:bg-muted"
-              }`}
+                }`}
               style={
                 activeFilter === group.id
                   ? { backgroundColor: COMPETENCY_COLORS[idx % COMPETENCY_COLORS.length] }

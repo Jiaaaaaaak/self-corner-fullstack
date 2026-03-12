@@ -60,7 +60,7 @@ export default function Home() {
           <div className="bg-[#3D3831] rounded-2xl p-10 md:p-16 shadow-lg relative overflow-hidden group">
             <div className="absolute top-0 right-0 w-64 h-64 bg-primary/10 rounded-full -mr-32 -mt-32 blur-3xl" />
             <div className="absolute bottom-0 left-0 w-48 h-48 bg-secondary/10 rounded-full -ml-24 -mb-24 blur-2xl" />
-            
+
             <div className="relative z-10 flex flex-col gap-8">
               <div className="flex flex-col gap-4">
                 <span className="font-heading text-[11px] font-bold tracking-[0.2em] text-primary uppercase">
@@ -70,8 +70,7 @@ export default function Home() {
                   在安心的空間裡，練習溫柔而堅定的對話
                 </h2>
                 <p className="text-[17px] text-[#A09C94] leading-relaxed max-w-[700px] font-medium">
-                  透過 Satir 薩提爾溝通模式與 SEL 社會情緒學習理論，我們為教師打造一個無壓力的
-                  AI 對話練習場。在這裡，每一次的嘗試都是成長的養分。
+                  透過 Satir 薩提爾溝通模式與 SEL 社會情緒學習理論，我們為教師打造一個無壓力的 AI 對話練習場。在這裡，每一次的嘗試都是成長的養分。
                 </p>
               </div>
 
@@ -147,7 +146,7 @@ export default function Home() {
         <div className="px-6 md:px-12 pb-20">
           <div className="bg-white border border-[#E5E2D9] rounded-2xl p-10 md:p-14 shadow-sm relative overflow-hidden">
             <div className="absolute inset-0 chalk-lines opacity-10 pointer-events-none" />
-            
+
             <div className="relative z-10 flex flex-col md:flex-row items-center justify-between gap-12">
               <div className="flex flex-col gap-6 md:max-w-[60%] text-center md:text-left">
                 <h3 className="font-heading text-3xl md:text-4xl font-bold text-[#3D3831] leading-tight tracking-tight">
