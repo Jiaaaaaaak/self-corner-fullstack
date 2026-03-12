@@ -1,11 +1,25 @@
 import { useState, useRef, useEffect } from "react";
 import { Mic, MicOff, Send, Pause, Play, ClipboardCheck, Loader2 } from "lucide-react";
 import { Room, RoomEvent, Track, DataPacket_Kind } from "livekit-client";
+import api from "@/lib/api";
 
 interface ChatMessage {
   role: "teacher" | "student";
   content: string;
 }
+
+// emotion log key → StudentEmotion（curious 對應到 thinking 圖片）
+const EMOTION_LOG_MAP: Record<string, string> = {
+  happy: "happy",
+  sad: "sad",
+  angry: "angry",
+  surprised: "surprised",
+  anxious: "anxious",
+  frustrated: "frustrated",
+  confident: "confident",
+  curious: "thinking",
+  neutral: "neutral",
+};
 
 interface ChatPanelProps {
   isPaused: boolean;
@@ -14,11 +28,12 @@ interface ChatPanelProps {
   onEmotionChange?: (emotion: string) => void;
   livekitToken: string | null;
   studentName?: string;
+  sessionUuid?: string | null;
 }
 
 const LIVEKIT_URL = import.meta.env.VITE_LIVEKIT_URL ?? "ws://localhost:7880";
 
-export default function ChatPanel({ isPaused, onTogglePause, onEnd, onEmotionChange, livekitToken, studentName = "學生" }: ChatPanelProps) {
+export default function ChatPanel({ isPaused, onTogglePause, onEnd, onEmotionChange, livekitToken, studentName = "學生", sessionUuid }: ChatPanelProps) {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [inputText, setInputText] = useState("");
   const [isRecording, setIsRecording] = useState(false);
@@ -56,7 +71,17 @@ export default function ChatPanel({ isPaused, onTogglePause, onEnd, onEmotionCha
           // Finalize: append final message then clear streaming bubble
           setMessages((prev) => [...prev, { role: "student", content: msg.text }]);
           setStreamingContent(null);
-          if (onEmotionChange) onEmotionChange("neutral");
+          // Fetch latest emotion log to drive character illustration
+          if (sessionUuid && onEmotionChange) {
+            api.get(`/session/${sessionUuid}/emotion/latest`)
+              .then((res) => {
+                const mapped = EMOTION_LOG_MAP[res.data.emotion] ?? "neutral";
+                onEmotionChange(mapped);
+              })
+              .catch(() => onEmotionChange("neutral"));
+          } else if (onEmotionChange) {
+            onEmotionChange("neutral");
+          }
         } else if (msg.type === "user_transcription" && msg.text) {
           setMessages((prev) => [...prev, { role: "teacher", content: msg.text }]);
           setIsThinking(true);

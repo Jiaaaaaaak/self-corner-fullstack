@@ -342,6 +342,15 @@ class DBManager:
         )
         return list(result.scalars().all())
 
+    async def get_latest_emotion_log(self, session_id: int) -> Optional[EmotionLog]:
+        result = await self.db.execute(
+            select(EmotionLog)
+            .where(EmotionLog.session_id == session_id)
+            .order_by(EmotionLog.turn_number.desc())
+            .limit(1)
+        )
+        return result.scalar_one_or_none()
+
     async def create_emotion_log(
         self, session_id: int, turn_number: int, teacher_input: str, scores: dict
     ) -> EmotionLog:

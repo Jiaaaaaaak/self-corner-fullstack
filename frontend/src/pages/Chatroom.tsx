@@ -161,6 +161,11 @@ export default function Chatroom() {
         setStudentName(name);
         preloadCharacterImages(name);
       }
+      if (sessionRes.data.initial_emotion) {
+        const initEmo = sessionRes.data.initial_emotion as StudentEmotion;
+        setStudentEmotion(initEmo);
+        setDisplayedEmotion(initEmo);
+      }
 
       const tokenRes = await api.post("/livekit/token", { session_uuid: uuid });
       setLivekitToken(tokenRes.data.token);
@@ -297,13 +302,11 @@ export default function Chatroom() {
                   </div>
                   <div className="flex flex-col gap-0.5">
                     <span className="font-heading text-sm font-bold text-[#3D3831] drop-shadow-sm">
-                      {studentProfile
-                        ? `${allGradeLevels.find((g) => g.id === studentProfile.grade)?.label ?? ""}學生`
-                        : studentName}
+                      {studentName}
                     </span>
                     {studentProfile && (
-                      <span className="text-xs font-medium text-primary drop-shadow-sm">
-                        {studentProfile.personality}
+                      <span className="text-xs font-medium text-[#706C61] drop-shadow-sm">
+                        {allGradeLevels.find((g) => g.id === studentProfile.grade)?.label ?? ""}・{studentProfile.personality}
                       </span>
                     )}
                     <div className="flex items-center gap-1.5">
@@ -401,6 +404,7 @@ export default function Chatroom() {
               onEmotionChange={(emo) => setStudentEmotion(emo as StudentEmotion)}
               livekitToken={livekitToken}
               studentName={studentName}
+              sessionUuid={currentSessionUuid}
             />
           )}
         </div>
@@ -424,6 +428,11 @@ export default function Chatroom() {
               const name: string = sessionRes.data.student_name;
               setStudentName(name);
               preloadCharacterImages(name);
+            }
+            if (sessionRes.data.initial_emotion) {
+              const initEmo = sessionRes.data.initial_emotion as StudentEmotion;
+              setStudentEmotion(initEmo);
+              setDisplayedEmotion(initEmo);
             }
             const tokenRes = await api.post("/livekit/token", { session_uuid: uuid });
             setLivekitToken(tokenRes.data.token);
