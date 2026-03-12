@@ -82,7 +82,10 @@ class DBManager:
 
     async def get_user_session_count(self, user_id: int) -> int:
         result = await self.db.execute(
-            select(func.count()).where(Session.user_id == user_id)
+            select(func.count())
+            .select_from(Session)
+            .join(FeedbackReport, FeedbackReport.session_id == Session.id)
+            .where(Session.user_id == user_id)
         )
         return result.scalar_one() or 0
 
