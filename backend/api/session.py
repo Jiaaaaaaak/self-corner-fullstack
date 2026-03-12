@@ -50,20 +50,6 @@ async def get_current_user_id(
 # Pydantic Models
 # =============================================================================
 
-PERSONALITY_KEY_MAP: dict[str, str] = {
-    "hedgehog":  "防衛刺蝟型",
-    "impulsive":  "衝動干擾型",
-    "anxious":    "焦慮退縮型",
-    "pressured":  "高壓衝動型",
-    "compliant":  "順從壓抑型",
-    "bully":      "校園霸王型",
-    "justice":    "正義風紀型",
-    "gifted":     "資優孤傲型",
-    "creative":   "創意散漫型",
-    "marginal":   "隨和邊緣型",
-}
-
-
 class SessionCreateRequest(BaseModel):
     scenario_id: int
     title: Optional[str] = None
@@ -99,10 +85,9 @@ async def create_session(
     if not scenario:
         raise HTTPException(status_code=404, detail="情境不存在")
 
-    # 按 personality_key 選取學生個性，無法對應時 fallback 隨機
-    personality_tag = PERSONALITY_KEY_MAP.get(body.personality_key) if body.personality_key else None
-    if personality_tag:
-        personality = await db_manager.get_personality_by_tag(personality_tag)
+    # 按 personality_key（即 personality_tags 值）選取學生個性，無法對應時 fallback 隨機
+    if body.personality_key:
+        personality = await db_manager.get_personality_by_tag(body.personality_key)
         if not personality:
             personality = await db_manager.get_random_personality()
     else:

@@ -69,8 +69,21 @@ class StudentPersonality(Base):
     # 領域重視度 {"學業": 0-5, "情感": 0-5, "人際": 0-5, "規矩": 0-5}
     personality_tags: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
     # 個性標籤，例如 "防衛刺蝟型"
+    short_desc: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    # 前端顯示的短描述，例如 "容易築起心牆，用攻擊掩飾脆弱"
 
     sessions: Mapped[list["Session"]] = relationship("Session", back_populates="personality")
+
+
+class GradeLevel(Base):
+    """年級資料庫"""
+    __tablename__ = "grade_levels"
+
+    id: Mapped[str] = mapped_column(String(30), primary_key=True)
+    label: Mapped[str] = mapped_column(String(20), nullable=False)
+    desc: Mapped[str] = mapped_column(String(50), nullable=False)
+    behavior_desc: Mapped[str] = mapped_column(Text, nullable=False)
+    sort_order: Mapped[int] = mapped_column(Integer, default=0)
 
 
 # =============================================================================

@@ -18,7 +18,7 @@ import ScenarioDetail from "@/components/chatroom/ScenarioDetail";
 import ChatPanel from "@/components/chatroom/ChatPanel";
 import SkillTreeMap from "@/components/chatroom/SkillTreeMap";
 import SoulCards from "@/components/chatroom/SoulCards";
-import StudentProfileSelect, { type StudentProfile, PERSONALITY_TRAITS, GRADE_LEVELS } from "@/components/chatroom/StudentProfileSelect";
+import StudentProfileSelect, { type StudentProfile } from "@/components/chatroom/StudentProfileSelect";
 import { buildCompetencyGroups, type Scenario, type CompetencyGroup } from "@/lib/collectionData";
 import api from "@/lib/api";
 import { useAuthStore } from "@/lib/auth";
@@ -30,6 +30,8 @@ export default function Chatroom() {
 
   const [allScenarios, setAllScenarios] = useState<Scenario[]>([]);
   const [competencyGroups, setCompetencyGroups] = useState<CompetencyGroup[]>([]);
+  const [allPersonalities, setAllPersonalities] = useState<any[]>([]);
+  const [allGradeLevels, setAllGradeLevels] = useState<any[]>([]);
   const [isStarted, setIsStarted] = useState(false);
   const [isPaused, setIsPaused] = useState(false);
   const [isEnding, setIsEnding] = useState(false);
@@ -57,12 +59,22 @@ export default function Chatroom() {
         description: s.description ?? "",
         short_desc: s.short_desc ?? undefined,
         tags: s.tags ?? [],
+        practice_count: s.practice_count ?? 0,
+        estimated_minutes: s.estimated_minutes ?? 10,
       }));
       setAllScenarios(data);
       setCompetencyGroups(buildCompetencyGroups(data));
     }).catch(() => {
       // leave empty — SkillTreeMap will show empty state
     });
+
+    api.get("/personalities").then((res) => {
+      setAllPersonalities(res.data);
+    }).catch(() => {});
+
+    api.get("/grade-levels").then((res) => {
+      setAllGradeLevels(res.data);
+    }).catch(() => {});
   }, []);
 
   // Timer Effect
@@ -262,12 +274,11 @@ export default function Chatroom() {
               </div>
               <div className="flex flex-col gap-0.5">
                 <span className="font-heading text-base font-bold text-white drop-shadow-md">
-                  {studentProfile ? `${GRADE_LEVELS.find((g) => g.id === studentProfile.grade)?.label ?? ""}學生` : studentName}
+                  {studentProfile ? `${allGradeLevels.find((g) => g.id === studentProfile.grade)?.label ?? ""}學生` : studentName}
                 </span>
                 {studentProfile && (
                   <span className="text-[11px] font-bold text-white/90 drop-shadow-sm bg-white/20 backdrop-blur-sm px-2 py-0.5 rounded-full w-fit">
-                    {PERSONALITY_TRAITS.find((p) => p.id === studentProfile.personality)?.emoji}{" "}
-                    {PERSONALITY_TRAITS.find((p) => p.id === studentProfile.personality)?.label}
+                    {studentProfile.personality}
                   </span>
                 )}
                 <div className="flex items-center gap-1.5 mt-0.5">
@@ -349,6 +360,8 @@ export default function Chatroom() {
               onConfirm={handleProfileConfirm}
               onBack={handleProfileBack}
               allowedPersonalityTags={pendingScenario?.tags}
+              personalities={allPersonalities}
+              gradeLevels={allGradeLevels}
             />
           )}
 

@@ -7,7 +7,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from database import init_db, close_db
-from api import auth, session, livekit_token, report, history, scenario
+from api import auth, session, livekit_token, report, history, scenario, personality, grade
 
 
 @asynccontextmanager
@@ -48,6 +48,8 @@ app.include_router(livekit_token.router)
 app.include_router(report.router)
 app.include_router(history.router)
 app.include_router(scenario.router)
+app.include_router(personality.router)
+app.include_router(grade.router)
 
 
 @app.get("/")

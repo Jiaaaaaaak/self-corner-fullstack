@@ -6,6 +6,8 @@ export interface Scenario {
   description: string;
   short_desc?: string;
   tags?: string[];
+  practice_count?: number;
+  estimated_minutes?: number;
   guideSentence?: string;
 }
 
