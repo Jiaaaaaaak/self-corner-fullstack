@@ -151,6 +151,12 @@ class DBManager:
         )
         return result.scalar_one_or_none()
 
+    async def get_personality_by_tag(self, tag: str) -> Optional[StudentPersonality]:
+        result = await self.db.execute(
+            select(StudentPersonality).where(StudentPersonality.personality_tags == tag)
+        )
+        return result.scalar_one_or_none()
+
     # =========================================================================
     # Session CRUD
     # =========================================================================
@@ -162,6 +168,7 @@ class DBManager:
         personality_id: Optional[int] = None,
         title: Optional[str] = None,
         livekit_room_name: Optional[str] = None,
+        session_metadata: Optional[Dict[str, Any]] = None,
     ) -> Session:
         session = Session(
             session_uuid=str(uuid.uuid4()),
@@ -172,6 +179,7 @@ class DBManager:
             livekit_room_name=livekit_room_name,
             is_active=True,
             started_at=datetime.utcnow(),
+            session_metadata=session_metadata,
         )
         self.db.add(session)
         await self.db.flush()

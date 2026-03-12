@@ -246,7 +246,10 @@ class StudentVoicePipeline:
                             "ANXIOUS": 0.30, "FRUSTRATED": 0.15, "CONFIDENT": 0.10,
                             "CURIOUS": 0.15, "NEUTRAL": 0.40,
                         }
-                        return build_student_prompt(scenario, personality)
+                        grade_id = None
+                        if session.session_metadata:
+                            grade_id = session.session_metadata.get("grade_id")
+                        return build_student_prompt(scenario, personality, grade_id=grade_id)
 
                     break
 

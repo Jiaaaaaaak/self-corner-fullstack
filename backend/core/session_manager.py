@@ -20,13 +20,16 @@ class SessionManager:
         personality_id: Optional[int] = None,
         title: Optional[str] = None,
         livekit_room_name: Optional[str] = None,
+        grade_id: Optional[str] = None,
     ) -> Dict[str, Any]:
+        metadata = {"grade_id": grade_id} if grade_id else None
         session = await self.db.create_session(
             user_id=user_id,
             scenario_id=scenario_id,
             personality_id=personality_id,
             title=title,
             livekit_room_name=livekit_room_name,
+            session_metadata=metadata,
         )
 
         session_data = {

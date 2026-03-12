@@ -50,9 +50,25 @@ async def get_current_user_id(
 # Pydantic Models
 # =============================================================================
 
+PERSONALITY_KEY_MAP: dict[str, str] = {
+    "hedgehog":  "防衛刺蝟型",
+    "impulsive":  "衝動干擾型",
+    "anxious":    "焦慮退縮型",
+    "pressured":  "高壓衝動型",
+    "compliant":  "順從壓抑型",
+    "bully":      "校園霸王型",
+    "justice":    "正義風紀型",
+    "gifted":     "資優孤傲型",
+    "creative":   "創意散漫型",
+    "marginal":   "隨和邊緣型",
+}
+
+
 class SessionCreateRequest(BaseModel):
     scenario_id: int
     title: Optional[str] = None
+    personality_key: Optional[str] = None
+    grade_id: Optional[str] = None
 
 
 class SessionResponse(BaseModel):
@@ -83,8 +99,14 @@ async def create_session(
     if not scenario:
         raise HTTPException(status_code=404, detail="情境不存在")
 
-    # 隨機選取學生個性
-    personality = await db_manager.get_random_personality()
+    # 按 personality_key 選取學生個性，無法對應時 fallback 隨機
+    personality_tag = PERSONALITY_KEY_MAP.get(body.personality_key) if body.personality_key else None
+    if personality_tag:
+        personality = await db_manager.get_personality_by_tag(personality_tag)
+        if not personality:
+            personality = await db_manager.get_random_personality()
+    else:
+        personality = await db_manager.get_random_personality()
     personality_id = personality.id if personality else None
 
     # 建立 LiveKit 房間名稱
@@ -97,6 +119,7 @@ async def create_session(
         personality_id=personality_id,
         title=body.title or scenario.title,
         livekit_room_name=livekit_room_name,
+        grade_id=body.grade_id,
     )
 
     return SessionResponse(

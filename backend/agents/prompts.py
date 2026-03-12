@@ -2,27 +2,41 @@
 Agent Layer - Prompts
 動態組裝學生 Agent 提示詞，以及教練分析、語意分析的靜態提示詞
 """
+from typing import Optional
 from models import Scenario, StudentPersonality
+
+
+GRADE_DESCRIPTIONS: dict[str, str] = {
+    "lower-elementary": "小學低年級學生（約7-8歲，小一～小二）",
+    "mid-elementary":   "小學中年級學生（約9-10歲，小三～小四）",
+    "upper-elementary": "小學高年級學生（約11-12歲，小五～小六）",
+    "junior-high":      "國中生（約13-15歲，國一～國三）",
+}
 
 
 # =============================================================================
 # 動態學生 Prompt 組裝
 # =============================================================================
 
-def build_student_prompt(scenario: Scenario, personality: StudentPersonality) -> str:
+def build_student_prompt(
+    scenario: Scenario,
+    personality: StudentPersonality,
+    grade_id: Optional[str] = None,
+) -> str:
     """
     根據情境與學生個性動態組裝 Realtime API 的 System Prompt。
     整合：12-15歲認知邊界、五大人格特質(OCEAN)，
     並引導模型直接從 base_prompt (深層心理) 中推演出角色的雷區與動機。
     """
     scenario_context = scenario.student_prompt or scenario.description
-    
+    grade_desc = GRADE_DESCRIPTIONS.get(grade_id, "國中一年級學生（年齡約 12-15 歲）")
+
     # 判斷是否為資優生設定，決定是否解鎖較高的認知與詞彙能力
     is_gifted = "資優" in personality.personality_type
 
     return f"""# 角色設定與語言規則（最高優先級）
 請務必使用繁體中文（台灣慣用語法）進行所有對話，嚴禁使用任何簡體中文詞彙。
-你現在是一位叫做「{personality.name}」的台灣國中一年級學生（年齡約 12-15 歲）。請完全沉浸在以下設定中，絕對不得脫離角色。
+你現在是一位叫做「{personality.name}」的台灣{grade_desc}。請完全沉浸在以下設定中，絕對不得脫離角色。
 
 【你的基本設定】
 個性標籤：{personality.personality_type}
