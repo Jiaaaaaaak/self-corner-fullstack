@@ -172,56 +172,78 @@ export default function ChatPanel({ isPaused, onTogglePause, onEnd, onEmotionCha
               className={`flex ${msg.role === "teacher" ? "justify-end" : "justify-start"} animate-in fade-in slide-in-from-bottom-2 duration-300`}
             >
               {msg.role === "student" && (
-                <div className="w-8 h-8 rounded-full bg-white/80 backdrop-blur-sm border border-[#E5E2D9]/50 overflow-hidden shrink-0 mr-2.5 self-end shadow-sm">
+                <div className="w-8 h-8 rounded-full overflow-hidden shrink-0 mr-2.5 self-end shadow-sm border-2 border-white/60 bg-white/90">
                   <img
                     src={`/avatars/${studentName}.png`}
                     alt={studentName}
-                    className="w-full h-full object-cover rounded-full"
+                    className="w-full h-full object-cover"
                     onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }}
                   />
                 </div>
               )}
-              <div
-                className={`max-w-[65%] px-5 py-3 text-[15px] font-medium leading-relaxed shadow-lg ${
-                  msg.role === "teacher"
-                    ? "bg-primary/90 backdrop-blur-sm text-white rounded-[18px] rounded-tr-sm"
-                    : "bg-white/85 backdrop-blur-sm text-[#3D3831] rounded-[18px] rounded-tl-sm border border-white/50"
-                }`}
-              >
-                <p>{msg.content}</p>
+              <div className={`max-w-[65%] shadow-xl ${
+                msg.role === "teacher"
+                  ? "bg-primary/85 backdrop-blur-sm text-white px-4 py-2.5 rounded-2xl rounded-tr-sm text-[14px] font-medium leading-relaxed"
+                  : ""
+              }`}>
+                {msg.role === "student" ? (
+                  <div className="bg-[#3D3831]/80 backdrop-blur-md rounded-2xl rounded-bl-sm px-4 py-3 border border-white/10">
+                    <div className="flex items-center gap-2 mb-1.5">
+                      <span className="text-[11px] font-bold text-primary tracking-wide">{studentName}</span>
+                      <div className="flex-1 h-px bg-white/10" />
+                    </div>
+                    <p className="text-[14px] font-medium leading-relaxed text-white/90">{msg.content}</p>
+                  </div>
+                ) : (
+                  <p className="text-[14px]">{msg.content}</p>
+                )}
               </div>
             </div>
           ))}
           {streamingContent !== null && (
             <div className="flex justify-start animate-in fade-in duration-200">
-              <div className="w-8 h-8 rounded-full bg-white/80 backdrop-blur-sm border border-[#E5E2D9]/50 overflow-hidden shrink-0 mr-2.5 self-end shadow-sm">
+              <div className="w-8 h-8 rounded-full overflow-hidden shrink-0 mr-2.5 self-end shadow-sm border-2 border-white/60 bg-white/90">
                 <img
                   src={`/avatars/${studentName}.png`}
                   alt={studentName}
-                  className="w-full h-full object-cover rounded-full"
+                  className="w-full h-full object-cover"
                   onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }}
                 />
               </div>
-              <div className="max-w-[65%] px-5 py-3 text-[15px] font-medium leading-relaxed shadow-lg bg-white/85 backdrop-blur-sm text-[#3D3831] rounded-[18px] rounded-tl-sm border border-white/50">
-                <p>{streamingContent}<span className="inline-block w-0.5 h-4 bg-[#A09C94] ml-0.5 animate-pulse align-middle" /></p>
+              <div className="max-w-[65%] shadow-xl">
+                <div className="bg-[#3D3831]/80 backdrop-blur-md rounded-2xl rounded-bl-sm px-4 py-3 border border-white/10">
+                  <div className="flex items-center gap-2 mb-1.5">
+                    <span className="text-[11px] font-bold text-primary tracking-wide">{studentName}</span>
+                    <div className="flex-1 h-px bg-white/10" />
+                  </div>
+                  <p className="text-[14px] font-medium leading-relaxed text-white/90">
+                    {streamingContent}<span className="inline-block w-0.5 h-4 bg-white/50 ml-0.5 animate-pulse align-middle" />
+                  </p>
+                </div>
               </div>
             </div>
           )}
           {isThinking && streamingContent === null && (
             <div className="flex justify-start animate-in fade-in duration-300">
-              <div className="w-8 h-8 rounded-full bg-white/80 backdrop-blur-sm border border-[#E5E2D9]/50 overflow-hidden shrink-0 mr-2.5 self-end shadow-sm flex items-center justify-center">
+              <div className="w-8 h-8 rounded-full overflow-hidden shrink-0 mr-2.5 self-end shadow-sm border-2 border-white/60 bg-white/90">
                 <img
                   src={`/avatars/${studentName}.png`}
                   alt={studentName}
-                  className="w-full h-full object-cover rounded-full"
+                  className="w-full h-full object-cover"
                   onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }}
                 />
               </div>
-              <div className="bg-white/80 backdrop-blur-sm border border-white/50 px-5 py-3 rounded-[18px] rounded-tl-sm shadow-lg">
-                <div className="flex gap-1.5">
-                  <div className="w-2 h-2 bg-[#A09C94] rounded-full animate-bounce [animation-delay:-0.3s]" />
-                  <div className="w-2 h-2 bg-[#A09C94] rounded-full animate-bounce [animation-delay:-0.15s]" />
-                  <div className="w-2 h-2 bg-[#A09C94] rounded-full animate-bounce" />
+              <div className="shadow-xl">
+                <div className="bg-[#3D3831]/80 backdrop-blur-md rounded-2xl rounded-bl-sm px-4 py-3 border border-white/10">
+                  <div className="flex items-center gap-2 mb-1.5">
+                    <span className="text-[11px] font-bold text-primary tracking-wide">{studentName}</span>
+                    <div className="flex-1 h-px bg-white/10" />
+                  </div>
+                  <div className="flex gap-1.5 py-0.5">
+                    <div className="w-2 h-2 bg-white/50 rounded-full animate-bounce [animation-delay:-0.3s]" />
+                    <div className="w-2 h-2 bg-white/50 rounded-full animate-bounce [animation-delay:-0.15s]" />
+                    <div className="w-2 h-2 bg-white/50 rounded-full animate-bounce" />
+                  </div>
                 </div>
               </div>
             </div>
