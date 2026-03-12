@@ -415,7 +415,10 @@ async def google_callback(
         return RedirectResponse(
             url=f"{FRONTEND_URL}/login?error={err}", status_code=302
         )
-    except Exception:
+    except Exception as e:
+        import traceback
+        print(f"[Google OAuth] Unexpected error: {e}")
+        traceback.print_exc()
         return RedirectResponse(
             url=f"{FRONTEND_URL}/login?error=oauth_failed", status_code=302
         )

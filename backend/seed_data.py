@@ -768,27 +768,26 @@ async def seed():
                 db.add(GradeLevel(**g))
         print(f"[Seed] Grade levels seeded ({len(GRADE_LEVELS)} rows).")
 
-        # 測試帳號
-        existing_user = await db.execute(
+        # 測試帳號（UPSERT：存在則補齊 is_email_verified，不存在則建立）
+        result = await db.execute(
             select(User).where(User.username == TEST_USER["username"])
         )
-        if not existing_user.scalar_one_or_none():
+        existing_user = result.scalar_one_or_none()
+        if not existing_user:
             db.add(User(
                 username=TEST_USER["username"],
                 email=TEST_USER["email"],
                 hashed_password=hash_password(TEST_USER["password"]),
                 first_name=TEST_USER["first_name"],
                 last_name=TEST_USER["last_name"],
-
-                #測試帳號沒有設驗證，加這行才能登入測試帳號
-                is_email_verified=True,  
-
+                is_email_verified=True,
             ))
             print(f"[Seed] Test user created.")
             print(f"       帳號：{TEST_USER['username']}")
             print(f"       密碼：{TEST_USER['password']}")
         else:
-            print("[Seed] Test user already exists, skipping.")
+            existing_user.is_email_verified = True
+            print("[Seed] Test user already exists, is_email_verified set to True.")
 
         await db.commit()
         print("[Seed] Done.")
