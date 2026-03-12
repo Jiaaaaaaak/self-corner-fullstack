@@ -81,7 +81,7 @@ class GradeLevel(Base):
 
     id: Mapped[str] = mapped_column(String(30), primary_key=True)
     label: Mapped[str] = mapped_column(String(20), nullable=False)
-    desc: Mapped[str] = mapped_column(String(50), nullable=False)
+    desc: Mapped[str] = mapped_column("desc", String(50), nullable=False)
     behavior_desc: Mapped[str] = mapped_column(Text, nullable=False)
     sort_order: Mapped[int] = mapped_column(Integer, default=0)
 

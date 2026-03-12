@@ -34,7 +34,7 @@ MIGRATIONS = [
     """CREATE TABLE IF NOT EXISTS grade_levels (
         id VARCHAR(30) PRIMARY KEY,
         label VARCHAR(20) NOT NULL,
-        desc VARCHAR(50) NOT NULL,
+        "desc" VARCHAR(50) NOT NULL,
         behavior_desc TEXT NOT NULL,
         sort_order INTEGER DEFAULT 0
     )""",
