@@ -72,51 +72,51 @@ export default function Info() {
             <div className="bg-white border border-[#E5E2D9] rounded-2xl shadow-sm overflow-hidden">
               {/* Profile Top Banner */}
               <div className="h-20 bg-[#FAF9F6] border-b border-[#E5E2D9] relative">
-                <div className="absolute -bottom-10 left-8">
-                  <div className="relative group">
-                    <Avatar className="h-20 w-20 border-4 border-white shadow-xl bg-white">
-                      <AvatarImage src={user.avatar || undefined} />
-                      <AvatarFallback className="bg-primary text-white text-2xl font-heading font-bold">
-                        {user.name.charAt(0)}
-                      </AvatarFallback>
-                    </Avatar>
-                    <div className="absolute inset-0 bg-black/40 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer">
-                      <UserIcon className="w-6 h-6 text-white" />
+                 <div className="absolute -bottom-10 left-8">
+                    <div className="relative group">
+                       <Avatar className="h-20 w-20 border-4 border-white shadow-xl bg-white">
+                         <AvatarImage src={user.avatar || undefined} />
+                         <AvatarFallback className="bg-primary text-white text-2xl font-heading font-bold">
+                           {user.name.charAt(0)}
+                         </AvatarFallback>
+                       </Avatar>
+                       <div className="absolute inset-0 bg-black/40 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer">
+                          <UserIcon className="w-6 h-6 text-white" />
+                       </div>
                     </div>
-                  </div>
-                </div>
-                <div className="absolute bottom-4 right-8">
-                  {!isEditing ? (
-                    <button
-                      onClick={() => setIsEditing(true)}
-                      className="flex items-center gap-2 px-4 py-2 bg-white border border-[#E5E2D9] rounded-lg text-xs font-bold text-[#3D3831] hover:border-primary hover:text-primary transition-all shadow-sm"
-                    >
-                      <Pencil className="w-3.5 h-3.5" />
-                      編輯基本資料
-                    </button>
-                  ) : (
-                    <div className="flex gap-2">
-                      <button onClick={handleCancel} className="flex items-center gap-2 px-4 py-2 bg-white border border-[#E5E2D9] rounded-lg text-xs font-bold text-[#706C61] hover:bg-muted/30 transition-all">
-                        <X className="w-3.5 h-3.5" />
-                        取消
+                 </div>
+                 <div className="absolute bottom-4 right-8">
+                    {!isEditing ? (
+                      <button 
+                        onClick={() => setIsEditing(true)}
+                        className="flex items-center gap-2 px-4 py-2 bg-white border border-[#E5E2D9] rounded-lg text-xs font-bold text-[#3D3831] hover:border-primary hover:text-primary transition-all shadow-sm"
+                      >
+                        <Pencil className="w-3.5 h-3.5" />
+                        編輯基本資料
                       </button>
-                      <button onClick={handleSave} className="flex items-center gap-2 px-4 py-2 bg-primary text-white rounded-lg text-xs font-bold shadow-lg shadow-primary/20 hover:bg-[#C8694F] transition-all">
-                        <Save className="w-3.5 h-3.5" />
-                        儲存變更
-                      </button>
-                    </div>
-                  )}
-                </div>
+                    ) : (
+                      <div className="flex gap-2">
+                        <button onClick={handleCancel} className="flex items-center gap-2 px-4 py-2 bg-white border border-[#E5E2D9] rounded-lg text-xs font-bold text-[#706C61] hover:bg-muted/30 transition-all">
+                          <X className="w-3.5 h-3.5" />
+                          取消
+                        </button>
+                        <button onClick={handleSave} className="flex items-center gap-2 px-4 py-2 bg-primary text-white rounded-lg text-xs font-bold shadow-lg shadow-primary/20 hover:bg-[#C8694F] transition-all">
+                          <Save className="w-3.5 h-3.5" />
+                          儲存變更
+                        </button>
+                      </div>
+                    )}
+                 </div>
               </div>
 
               {/* Form Content */}
               <div className="pt-14 pb-6 px-8">
                 <div className="mb-5">
-                  <h2 className="font-heading text-xl font-bold text-[#3D3831]">{user.name}</h2>
-                  <p className="text-sm text-[#706C61] font-medium flex items-center gap-2 mt-1">
-                    <Calendar className="w-3.5 h-3.5" />
-                    平台成員自 {user.since}
-                  </p>
+                   <h2 className="font-heading text-xl font-bold text-[#3D3831]">{user.name}</h2>
+                   <p className="text-sm text-[#706C61] font-medium flex items-center gap-2 mt-1">
+                      <Calendar className="w-3.5 h-3.5" />
+                      平台成員自 {user.since}
+                   </p>
                 </div>
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
@@ -124,7 +124,7 @@ export default function Info() {
                   <div className="flex flex-col gap-2">
                     <Label className="font-heading text-[10px] font-bold text-[#A09C94] uppercase tracking-[0.15em]">顯示姓名</Label>
                     {isEditing ? (
-                      <Input value={editForm.name} onChange={e => setEditForm({ ...editForm, name: e.target.value })} className="bg-[#FAF9F6] border-[#E5E2D9] rounded-xl font-medium" />
+                      <Input value={editForm.name} onChange={e => setEditForm({...editForm, name: e.target.value})} className="bg-[#FAF9F6] border-[#E5E2D9] rounded-xl font-medium" />
                     ) : (
                       <div className="h-10 flex items-center px-4 bg-[#FAF9F6] rounded-lg border border-transparent font-bold text-[#3D3831]">{user.name}</div>
                     )}
@@ -134,7 +134,7 @@ export default function Info() {
                   <div className="flex flex-col gap-2">
                     <Label className="font-heading text-[10px] font-bold text-[#A09C94] uppercase tracking-[0.15em]">電子郵件</Label>
                     {isEditing ? (
-                      <Input value={editForm.email} onChange={e => setEditForm({ ...editForm, email: e.target.value })} className="bg-[#FAF9F6] border-[#E5E2D9] rounded-xl font-medium" />
+                      <Input value={editForm.email} onChange={e => setEditForm({...editForm, email: e.target.value})} className="bg-[#FAF9F6] border-[#E5E2D9] rounded-xl font-medium" />
                     ) : (
                       <div className="h-10 flex items-center px-4 bg-[#FAF9F6] rounded-lg border border-transparent font-bold text-[#3D3831]">{user.email}</div>
                     )}
@@ -145,13 +145,13 @@ export default function Info() {
                     <Label className="font-heading text-[10px] font-bold text-[#A09C94] uppercase tracking-[0.15em]">服務單位</Label>
                     {isEditing ? (
                       <div className="relative">
-                        <Input value={editForm.school} onChange={e => setEditForm({ ...editForm, school: e.target.value })} className="bg-[#FAF9F6] border-[#E5E2D9] rounded-xl font-medium pl-10" />
+                        <Input value={editForm.school} onChange={e => setEditForm({...editForm, school: e.target.value})} className="bg-[#FAF9F6] border-[#E5E2D9] rounded-xl font-medium pl-10" />
                         <School className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-[#A09C94]" />
                       </div>
                     ) : (
                       <div className="h-10 flex items-center px-4 bg-[#FAF9F6] rounded-lg border border-transparent font-bold text-[#3D3831] flex gap-2">
-                        <School className="w-4 h-4 text-[#A09C94]" />
-                        {user.school}
+                         <School className="w-4 h-4 text-[#A09C94]" />
+                         {user.school}
                       </div>
                     )}
                   </div>
@@ -160,7 +160,7 @@ export default function Info() {
                   <div className="flex flex-col gap-2">
                     <Label className="font-heading text-[10px] font-bold text-[#A09C94] uppercase tracking-[0.15em]">教學年資</Label>
                     {isEditing ? (
-                      <Input value={editForm.experience} onChange={e => setEditForm({ ...editForm, experience: e.target.value })} className="bg-[#FAF9F6] border-[#E5E2D9] rounded-xl font-medium" />
+                      <Input value={editForm.experience} onChange={e => setEditForm({...editForm, experience: e.target.value})} className="bg-[#FAF9F6] border-[#E5E2D9] rounded-xl font-medium" />
                     ) : (
                       <div className="h-10 flex items-center px-4 bg-[#FAF9F6] rounded-lg border border-transparent font-bold text-[#3D3831]">{user.experience}</div>
                     )}
@@ -171,16 +171,16 @@ export default function Info() {
 
             {/* Security Section Placeholder */}
             <div className="bg-white border border-[#E5E2D9] rounded-2xl p-6 shadow-sm flex items-center justify-between group cursor-pointer hover:border-primary/30 transition-all">
-              <div className="flex items-center gap-4">
-                <div className="w-12 h-12 bg-[#FAF9F6] rounded-xl flex items-center justify-center">
-                  <Shield className="w-6 h-6 text-[#A09C94]" />
-                </div>
-                <div>
-                  <h3 className="font-heading text-[15px] font-bold text-[#3D3831]">帳號安全設定</h3>
-                  <p className="text-xs text-[#706C61] font-medium">修改密碼與驗證您的身分資訊</p>
-                </div>
-              </div>
-              <ChevronRight className="w-5 h-5 text-[#A09C94] group-hover:text-primary transition-all" />
+               <div className="flex items-center gap-4">
+                  <div className="w-12 h-12 bg-[#FAF9F6] rounded-xl flex items-center justify-center">
+                     <Shield className="w-6 h-6 text-[#A09C94]" />
+                  </div>
+                  <div>
+                     <h3 className="font-heading text-[15px] font-bold text-[#3D3831]">帳號安全設定</h3>
+                     <p className="text-xs text-[#706C61] font-medium">修改密碼與驗證您的身分資訊</p>
+                  </div>
+               </div>
+               <ChevronRight className="w-5 h-5 text-[#A09C94] group-hover:text-primary transition-all" />
             </div>
           </div>
         </div>
