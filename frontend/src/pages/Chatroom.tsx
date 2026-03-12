@@ -279,6 +279,7 @@ export default function Chatroom() {
               {/* Large character illustration - anchored at bottom center */}
               <div className="absolute bottom-0 left-1/2 -translate-x-1/2 z-10 h-[85vh] overflow-hidden flex items-start justify-center pointer-events-none">
                 <img
+                  key={studentName}
                   src={getStudentImagePath(studentName, displayedEmotion)}
                   alt={`${studentName} - ${displayedEmotion}`}
                   className={`h-[110vh] object-contain object-top drop-shadow-2xl transition-all duration-300 ease-out ${

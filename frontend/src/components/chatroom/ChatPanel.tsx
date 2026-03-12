@@ -85,7 +85,6 @@ export default function ChatPanel({ isPaused, onTogglePause, onEnd, onEmotionCha
         } else if (msg.type === "user_transcription" && msg.text) {
           setMessages((prev) => [...prev, { role: "teacher", content: msg.text }]);
           setIsThinking(true);
-          if (onEmotionChange) onEmotionChange("thinking");
         }
       } catch {
         // ignore malformed messages
@@ -134,7 +133,6 @@ export default function ChatPanel({ isPaused, onTogglePause, onEnd, onEmotionCha
     setMessages((prev) => [...prev, { role: "teacher", content: text }]);
     setInputText("");
     setIsThinking(true);
-    if (onEmotionChange) onEmotionChange("thinking");
 
     if (roomRef.current) {
       try {
@@ -154,7 +152,6 @@ export default function ChatPanel({ isPaused, onTogglePause, onEnd, onEmotionCha
           ...prev,
           { role: "student", content: "（尚未連線，請確認後端服務是否啟動）" },
         ]);
-        if (onEmotionChange) onEmotionChange("neutral");
       }, 2000);
     }
   };
@@ -177,7 +174,6 @@ export default function ChatPanel({ isPaused, onTogglePause, onEnd, onEmotionCha
       try {
         await roomRef.current.localParticipant.setMicrophoneEnabled(true);
         setIsRecording(true);
-        if (onEmotionChange) onEmotionChange("thinking");
       } catch (err) {
         console.error("[ChatPanel] Mic enable failed:", err);
       }
