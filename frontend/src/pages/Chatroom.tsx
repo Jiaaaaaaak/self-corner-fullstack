@@ -22,6 +22,7 @@ import StudentProfileSelect, { type StudentProfile } from "@/components/chatroom
 import { buildCompetencyGroups, type Scenario, type CompetencyGroup } from "@/lib/collectionData";
 import api from "@/lib/api";
 import { useAuthStore } from "@/lib/auth";
+import { getStudentImagePath, getAvatarPath, preloadCharacterImages, type StudentEmotion } from "@/lib/studentCharacter";
 
 export default function Chatroom() {
   const navigate = useNavigate();
@@ -36,7 +37,9 @@ export default function Chatroom() {
   const [isPaused, setIsPaused] = useState(false);
   const [isEnding, setIsEnding] = useState(false);
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
-  const [studentEmotion, setStudentEmotion] = useState<"neutral" | "angry" | "sad" | "thinking">("neutral");
+  const [studentEmotion, setStudentEmotion] = useState<StudentEmotion>("neutral");
+  const [displayedEmotion, setDisplayedEmotion] = useState<StudentEmotion>("neutral");
+  const [isTransitioning, setIsTransitioning] = useState(false);
   const [studentName, setStudentName] = useState("小明");
   const [selectedScenarioId, setSelectedScenarioId] = useState<number | null>(null);
   const [activeScenario, setActiveScenario] = useState<Scenario | null>(null);
@@ -47,6 +50,18 @@ export default function Chatroom() {
   const [soulCardsOpen, setSoulCardsOpen] = useState(false);
   const [livekitToken, setLivekitToken] = useState<string | null>(null);
   const [currentSessionUuid, setCurrentSessionUuid] = useState<string | null>(null);
+
+  // Cross-fade emotion transition
+  useEffect(() => {
+    if (studentEmotion !== displayedEmotion) {
+      setIsTransitioning(true);
+      const timer = setTimeout(() => {
+        setDisplayedEmotion(studentEmotion);
+        setIsTransitioning(false);
+      }, 150);
+      return () => clearTimeout(timer);
+    }
+  }, [studentEmotion, displayedEmotion]);
 
   // Load scenarios from API
   useEffect(() => {
@@ -64,9 +79,7 @@ export default function Chatroom() {
       }));
       setAllScenarios(data);
       setCompetencyGroups(buildCompetencyGroups(data));
-    }).catch(() => {
-      // leave empty — SkillTreeMap will show empty state
-    });
+    }).catch(() => {});
 
     api.get("/personalities").then((res) => {
       setAllPersonalities(res.data);
@@ -144,7 +157,14 @@ export default function Chatroom() {
       setCurrentSessionUuid(uuid);
       setSessionUuid(uuid);
       if (sessionRes.data.student_name) {
-        setStudentName(sessionRes.data.student_name);
+        const name: string = sessionRes.data.student_name;
+        setStudentName(name);
+        preloadCharacterImages(name);
+      }
+      if (sessionRes.data.initial_emotion) {
+        const initEmo = sessionRes.data.initial_emotion as StudentEmotion;
+        setStudentEmotion(initEmo);
+        setDisplayedEmotion(initEmo);
       }
 
       const tokenRes = await api.post("/livekit/token", { session_uuid: uuid });
@@ -178,32 +198,19 @@ export default function Chatroom() {
     navigate("/feedback", { state: { currentScenarioId: activeScenario?.id } });
   };
 
-  const EMOTION_FILENAME: Record<string, string> = {
-    neutral: "中性",
-    angry: "憤怒",
-    sad: "悲傷",
-    thinking: "好奇",
-  };
-
-  const renderStudentAvatar = () => {
-    const filename = EMOTION_FILENAME[isPaused ? "neutral" : studentEmotion] ?? "中性";
-    return (
-      <img
-        src={`/img/students/${studentName}_${filename}.png`}
-        alt={studentName}
-        className="w-full h-full object-cover"
-        onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }}
-      />
-    );
-  };
-
   const emotionLabel = () => {
-    switch (studentEmotion) {
-      case "angry": return "抗拒 · 防衛";
-      case "sad": return "難過 · 退縮";
-      case "thinking": return "學生思考中...";
-      default: return "聆聽中";
-    }
+    const labels: Record<string, string> = {
+      angry: "抗拒 · 防衛",
+      sad: "難過 · 退縮",
+      thinking: "學生思考中...",
+      frustrated: "挫折 · 受傷",
+      anxious: "焦慮 · 不安",
+      confident: "自信 · 穩定",
+      happy: "開心 · 放鬆",
+      surprised: "驚訝 · 意外",
+      neutral: "聆聽中",
+    };
+    return labels[studentEmotion] ?? "聆聽中";
   };
 
   const sessionInfo = isStarted && activeScenario ? {
@@ -266,29 +273,53 @@ export default function Chatroom() {
             </div>
           )}
 
-          {/* Student avatar overlay */}
+          {/* RPG Character Display */}
           {isStarted && (
-            <div className="absolute top-6 left-8 z-20 flex items-center gap-4 animate-in fade-in duration-500">
-              <div className="w-14 h-14 rounded-full bg-white/90 backdrop-blur-sm border-2 border-white shadow-xl overflow-hidden flex items-center justify-center">
-                {renderStudentAvatar()}
+            <>
+              {/* Large character illustration - anchored at bottom center */}
+              <div className="absolute bottom-0 left-1/2 -translate-x-1/2 z-10 h-[85vh] overflow-hidden flex items-start justify-center pointer-events-none">
+                <img
+                  key={studentName}
+                  src={getStudentImagePath(studentName, displayedEmotion)}
+                  alt={`${studentName} - ${displayedEmotion}`}
+                  className={`h-[110vh] object-contain object-top drop-shadow-2xl transition-all duration-300 ease-out ${
+                    isTransitioning ? "opacity-0 scale-95" : "opacity-100 scale-100"
+                  } ${isPaused ? "brightness-50" : ""}`}
+                  onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }}
+                />
               </div>
-              <div className="flex flex-col gap-0.5">
-                <span className="font-heading text-base font-bold text-white drop-shadow-md">
-                  {studentProfile ? `${allGradeLevels.find((g) => g.id === studentProfile.grade)?.label ?? ""}學生` : studentName}
-                </span>
-                {studentProfile && (
-                  <span className="text-[11px] font-bold text-white/90 drop-shadow-sm bg-white/20 backdrop-blur-sm px-2 py-0.5 rounded-full w-fit">
-                    {studentProfile.personality}
-                  </span>
-                )}
-                <div className="flex items-center gap-1.5 mt-0.5">
-                  <div className={`w-1.5 h-1.5 rounded-full ${isPaused ? "bg-[#A09C94]" : "bg-primary animate-pulse"}`} />
-                  <span className="text-xs font-medium text-white/80 drop-shadow-sm">
-                    {emotionLabel()}
-                  </span>
+
+              {/* Student info badge - top left */}
+              <div className="absolute top-4 left-6 z-20 animate-in fade-in duration-500">
+                <div className="flex items-center gap-3 bg-white/40 backdrop-blur-sm rounded-2xl px-3 py-2" style={{ textShadow: "0 1px 3px rgba(255,255,255,0.8)" }}>
+                  {/* Avatar thumbnail - static, from /avatars/ */}
+                  <div className="w-12 h-12 rounded-full overflow-hidden border-2 border-white/80 shadow-lg shrink-0 bg-white/90">
+                    <img
+                      src={getAvatarPath(studentName)}
+                      alt={studentName}
+                      className="w-full h-full object-cover"
+                      onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }}
+                    />
+                  </div>
+                  <div className="flex flex-col gap-0.5">
+                    <span className="font-heading text-sm font-bold text-[#3D3831] drop-shadow-sm">
+                      {studentName}
+                    </span>
+                    {studentProfile && (
+                      <span className="text-xs font-medium text-[#706C61] drop-shadow-sm">
+                        {allGradeLevels.find((g) => g.id === studentProfile.grade)?.label ?? ""}・{studentProfile.personality}
+                      </span>
+                    )}
+                    <div className="flex items-center gap-1.5">
+                      <div className={`w-1.5 h-1.5 rounded-full ${isPaused ? "bg-[#A09C94]" : "bg-green-500 animate-pulse"}`} />
+                      <span className="text-[11px] font-medium text-[#706C61] drop-shadow-sm">
+                        {emotionLabel()}
+                      </span>
+                    </div>
+                  </div>
                 </div>
               </div>
-            </div>
+            </>
           )}
 
           {/* ENDING OVERLAY */}
@@ -371,9 +402,10 @@ export default function Chatroom() {
               isPaused={isPaused}
               onTogglePause={handleTogglePause}
               onEnd={handleEnd}
-              onEmotionChange={(emo) => setStudentEmotion(emo as any)}
+              onEmotionChange={(emo) => setStudentEmotion(emo as StudentEmotion)}
               livekitToken={livekitToken}
               studentName={studentName}
+              sessionUuid={currentSessionUuid}
             />
           )}
         </div>
@@ -394,7 +426,14 @@ export default function Chatroom() {
             setCurrentSessionUuid(uuid);
             setSessionUuid(uuid);
             if (sessionRes.data.student_name) {
-              setStudentName(sessionRes.data.student_name);
+              const name: string = sessionRes.data.student_name;
+              setStudentName(name);
+              preloadCharacterImages(name);
+            }
+            if (sessionRes.data.initial_emotion) {
+              const initEmo = sessionRes.data.initial_emotion as StudentEmotion;
+              setStudentEmotion(initEmo);
+              setDisplayedEmotion(initEmo);
             }
             const tokenRes = await api.post("/livekit/token", { session_uuid: uuid });
             setLivekitToken(tokenRes.data.token);

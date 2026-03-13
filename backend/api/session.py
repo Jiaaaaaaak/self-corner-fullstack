@@ -57,6 +57,20 @@ class SessionCreateRequest(BaseModel):
     grade_id: Optional[str] = None
 
 
+# initial_emotions 欄位的大寫 key → 前端 StudentEmotion 名稱
+EMOTION_KEY_MAP: dict[str, str] = {
+    "HAPPY": "happy",
+    "SAD": "sad",
+    "ANGRY": "angry",
+    "SURPRISED": "surprised",
+    "ANXIOUS": "anxious",
+    "FRUSTRATED": "frustrated",
+    "CONFIDENT": "confident",
+    "CURIOUS": "thinking",   # 對應 /img/students/*_好奇.png
+    "NEUTRAL": "neutral",
+}
+
+
 class SessionResponse(BaseModel):
     session_uuid: str
     title: Optional[str]
@@ -64,6 +78,7 @@ class SessionResponse(BaseModel):
     scenario_id: Optional[int]
     personality_id: Optional[int]
     student_name: Optional[str]
+    initial_emotion: str
     is_active: bool
     started_at: str
 
@@ -107,6 +122,11 @@ async def create_session(
         grade_id=body.grade_id,
     )
 
+    initial_emotion = "neutral"
+    if scenario.initial_emotions:
+        dominant_key = max(scenario.initial_emotions, key=lambda k: scenario.initial_emotions[k])
+        initial_emotion = EMOTION_KEY_MAP.get(dominant_key, "neutral")
+
     return SessionResponse(
         session_uuid=session_data["session_uuid"],
         title=session_data["title"],
@@ -114,6 +134,7 @@ async def create_session(
         scenario_id=session_data["scenario_id"],
         personality_id=session_data["personality_id"],
         student_name=personality.name if personality else None,
+        initial_emotion=initial_emotion,
         is_active=session_data["is_active"],
         started_at=session_data["started_at"].isoformat() + "+00:00",
     )
@@ -236,6 +257,42 @@ async def end_session(
         return {"status": "ended", "report_ready": False, "message": f"報告儲存失敗：{e}"}
 
     return {"status": "ended", "report_ready": True}
+
+
+@router.get("/{session_uuid}/emotion/latest")
+async def get_latest_emotion(
+    session_uuid: str,
+    db: AsyncSession = Depends(get_db),
+    user_id: int = Depends(get_current_user_id),
+):
+    """
+    取得該 session 最新一輪的情緒分析結果，
+    回傳最高分情緒名稱（供前端即時切換立繪）。
+    """
+    db_manager = DBManager(db)
+    session = await db_manager.get_session_by_uuid(session_uuid)
+    if not session:
+        raise HTTPException(status_code=404, detail="Session 不存在")
+    if session.user_id != user_id:
+        raise HTTPException(status_code=403, detail="無權查看此 Session")
+
+    log = await db_manager.get_latest_emotion_log(session.id)
+    if not log:
+        return {"emotion": "neutral", "turn_number": 0}
+
+    scores = {
+        "happy": log.happy,
+        "sad": log.sad,
+        "angry": log.angry,
+        "surprised": log.surprised,
+        "anxious": log.anxious,
+        "frustrated": log.frustrated,
+        "confident": log.confident,
+        "curious": log.curious,
+        "neutral": log.neutral,
+    }
+    dominant = max(scores, key=lambda k: scores[k])
+    return {"emotion": dominant, "turn_number": log.turn_number, "scores": scores}
 
 
 @router.get("/count")
