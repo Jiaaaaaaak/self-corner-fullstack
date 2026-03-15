@@ -11,6 +11,7 @@
 5. [頁面功能說明](#5-頁面功能說明)
 6. [API 端點速查](#6-api-端點速查)
 7. [常見問題](#7-常見問題)
+8. [ngrok 遠端分享](#8-ngrok-遠端分享)
 
 ---
 
@@ -395,6 +396,174 @@ python seed_data.py
 pip show bcrypt  # 應顯示 Version: 4.0.1
 pip install "bcrypt==4.0.1"  # 若不符合則重新安裝
 ```
+
+---
+
+## 8. ngrok 遠端分享
+
+ngrok 可將本機開發伺服器暴露為公開 HTTPS URL，適合 Demo 給外部人員或在沒有固定 IP 的環境下遠端分享。
+
+> **適用情境**：期末報告 Demo、讓評審在自己裝置上試用、遠端協作測試。本機開發**不需要**啟動 ngrok。
+
+---
+
+### 8.1 下載並安裝 ngrok
+
+#### 方法一：官網下載（所有平台）
+
+1. 前往 [https://ngrok.com/download](https://ngrok.com/download)
+2. 選擇對應作業系統（Windows / macOS / Linux）下載壓縮檔
+3. 解壓縮後將執行檔放到系統 PATH 可存取的位置：
+   - **Windows**：解壓縮到任意資料夾（如 `C:\ngrok\`），並將該路徑加入環境變數 `PATH`，或直接將 `ngrok.exe` 複製到 `C:\Windows\System32\`
+   - **macOS / Linux**：`sudo mv ngrok /usr/local/bin/`
+
+#### 方法二：套件管理工具
+
+```bash
+# macOS（Homebrew）
+brew install ngrok/ngrok/ngrok
+
+# Windows（Chocolatey）
+choco install ngrok
+
+# Windows（Winget）
+winget install ngrok
+```
+
+確認安裝成功：
+
+```bash
+ngrok version
+# 應輸出 ngrok version x.x.x
+```
+
+---
+
+### 8.2 建立帳號並取得 Authtoken
+
+ngrok 需要帳號才能建立 tunnel（免費方案已足夠 Demo 使用）。
+
+1. 前往 [https://dashboard.ngrok.com/signup](https://dashboard.ngrok.com/signup) 註冊帳號
+2. 登入後前往 **Your Authtoken** 頁面：[https://dashboard.ngrok.com/get-started/your-authtoken](https://dashboard.ngrok.com/get-started/your-authtoken)
+3. 複製 Authtoken，執行以下指令完成設定：
+
+```bash
+ngrok config add-authtoken <YOUR_AUTHTOKEN>
+```
+
+設定會寫入 `~/.config/ngrok/ngrok.yml`（macOS/Linux）或 `%USERPROFILE%\AppData\Local\ngrok\ngrok.yml`（Windows），**只需設定一次**。
+
+---
+
+### 8.3 啟動服務
+
+依照 [第 3 節](#3-啟動服務) 正常啟動所有三個服務後，**額外開第 4 個終端機**執行 ngrok：
+
+```bash
+# Terminal 4 — ngrok（不需要 venv）
+ngrok http 8080
+```
+
+啟動後終端機會顯示類似：
+
+```
+Forwarding   https://abcd-1234-5678.ngrok-free.app -> http://localhost:8080
+```
+
+記下這個 `https://xxxx.ngrok-free.app` URL，這就是分享給外部使用者的網址。
+
+> **注意**：免費方案每次重啟 ngrok 都會產生**不同的 URL**，需重新更新以下設定。
+
+---
+
+### 8.4 更新後端環境變數
+
+由於後端 CORS 設定需要允許來自 ngrok URL 的請求，每次取得新 URL 後需更新 `backend/.env`：
+
+```bash
+# 編輯 backend/.env，找到（或新增）以下行：
+CORS_ORIGINS=https://abcd-1234-5678.ngrok-free.app
+```
+
+若有**多個** ngrok URL（例如同時分享給多人），以逗號分隔：
+
+```
+CORS_ORIGINS=https://xxxx.ngrok-free.app,https://yyyy.ngrok-free.app
+```
+
+修改 `.env` 後**重啟 FastAPI**（Terminal 1）才會生效：
+
+```bash
+# 中斷 Terminal 1（Ctrl+C）後重新啟動
+cd backend
+python main.py
+```
+
+---
+
+### 8.5 更新 Google OAuth 設定（使用 Google 登入時才需要）
+
+若使用者需要透過 ngrok URL 進行 **Google OAuth 登入**，須額外更新兩個設定：
+
+#### 步驟一：更新 `backend/.env`
+
+```bash
+FRONTEND_URL=https://abcd-1234-5678.ngrok-free.app
+GOOGLE_REDIRECT_URI=https://abcd-1234-5678.ngrok-free.app/auth/google/callback
+```
+
+> `FRONTEND_URL` 同時影響**驗證信**與**密碼重設信**中的連結 URL。若有寄信需求（使用者透過 ngrok URL 完成 Email 驗證或密碼重設），也必須更新此欄位。
+
+#### 步驟二：在 Google Cloud Console 新增 redirect URI
+
+1. 前往 [Google Cloud Console](https://console.cloud.google.com/apis/credentials)
+2. 找到對應的 OAuth 2.0 Client ID，點擊編輯
+3. 在「已授權的重新導向 URI」新增：
+   ```
+   https://abcd-1234-5678.ngrok-free.app/auth/google/callback
+   ```
+4. 儲存
+
+更新後**重啟 FastAPI**。
+
+---
+
+### 8.6 完整啟動順序（含 ngrok）
+
+```
+Terminal 1：python main.py          （FastAPI，port 8000）
+Terminal 2：python -m agents.voice_pipeline dev  （LiveKit Agent Worker）
+Terminal 3：npm run dev              （前端，port 8080）
+Terminal 4：ngrok http 8080          （取得 ngrok URL）
+→ 更新 backend/.env 的 CORS_ORIGINS
+→ 重啟 Terminal 1
+→ 將 https://xxxx.ngrok-free.app 分享給外部使用者
+```
+
+---
+
+### 8.7 常見問題
+
+**Q：瀏覽器開啟 ngrok URL 顯示警告頁（「You are about to visit...」）？**
+
+A：ngrok 免費方案會對外部訪客顯示一個警告頁。使用者點擊「Visit Site」即可繼續。若要跳過此頁面，可要求訪客在瀏覽器開發者工具中設定 Cookie，或改用 ngrok 付費方案（提供自訂網域）。
+
+**Q：更新 `CORS_ORIGINS` 並重啟後，仍出現 CORS 錯誤？**
+
+A：請確認：
+1. `.env` 中的 URL **不含**結尾斜線（`/`），例如 `https://xxxx.ngrok-free.app`（正確）而非 `https://xxxx.ngrok-free.app/`（錯誤）
+2. FastAPI 確實已重啟（Ctrl+C 後重新執行 `python main.py`）
+3. 後端 Terminal 1 啟動訊息中確認 `[INFO] Starting SELf-Corner Backend...` 已出現
+
+**Q：ngrok 重啟後 URL 改變，所有設定要重做一遍？**
+
+A：是的，免費方案每次重啟都會更換 URL。可考慮：
+- 購買 ngrok 付費方案，使用靜態網域（Static Domain）
+- 或在 Demo 期間保持 ngrok 持續執行（不要中斷 Terminal 4）
+
+**Q：語音功能（LiveKit）在 ngrok 下無法使用？**
+
+A：LiveKit 使用 WebRTC，連線至 LiveKit Cloud（`wss://your-project.livekit.cloud`），與 ngrok tunnel 無關，不受影響。確認 `backend/.env` 中的 `LIVEKIT_URL`、`LIVEKIT_API_KEY`、`LIVEKIT_API_SECRET` 設定正確即可。
 
 ---
 

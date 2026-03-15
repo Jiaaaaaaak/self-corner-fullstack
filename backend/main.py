@@ -29,7 +29,10 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
-# CORS（開發環境允許前端開發伺服器）
+# CORS（開發環境允許前端開發伺服器；使用 ngrok 時透過 CORS_ORIGINS 動態擴充）
+_extra_origins = [
+    o.strip() for o in os.getenv("CORS_ORIGINS", "").split(",") if o.strip()
+]
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[
@@ -37,6 +40,7 @@ app.add_middleware(
         "http://127.0.0.1:5173",
         "http://localhost:8080",
         "http://127.0.0.1:8080",
+        *_extra_origins,
     ],
     allow_credentials=True,
     allow_methods=["*"],
