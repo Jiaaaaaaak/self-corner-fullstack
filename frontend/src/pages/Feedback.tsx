@@ -130,8 +130,14 @@ export default function Feedback() {
   }, [sessionUuid]);
 
   const handleRetry = () => {
-    const scenarioId = location.state?.currentScenarioId;
-    navigate("/chatroom", { state: { retryScenarioId: scenarioId } });
+    navigate("/chatroom", {
+      state: {
+        retryScenarioId: location.state?.currentScenarioId ?? null,
+        retryPersonalityKey: location.state?.retryPersonalityKey ?? null,
+        retryGradeId: location.state?.retryGradeId ?? null,
+        retryEnableVoice: location.state?.retryEnableVoice ?? false,
+      },
+    });
   };
 
   const handleSendCoach = async () => {

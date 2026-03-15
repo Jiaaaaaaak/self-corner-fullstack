@@ -61,6 +61,10 @@ async def get_history(
             scenario = await db_manager.get_scenario_by_id(s.scenario_id)
             scenario_title = scenario.title if scenario else None
 
+        report = await db_manager.get_feedback_report_by_session(s.id)
+        if not report:
+            continue  # 只顯示有報告的 session
+
         transcripts = await db_manager.get_session_transcripts(s.id)
         rounds = len(transcripts)
         duration = _calc_duration(s.started_at, s.ended_at)

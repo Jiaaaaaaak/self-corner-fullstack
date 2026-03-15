@@ -27,6 +27,7 @@ interface ChatPanelProps {
   onEnd: () => void;
   onEmotionChange?: (emotion: string) => void;
   onPipelineError?: () => void;
+  enableVoice?: boolean;
   livekitToken: string | null;
   studentName?: string;
   sessionUuid?: string | null;
@@ -34,7 +35,7 @@ interface ChatPanelProps {
 
 const LIVEKIT_URL = import.meta.env.VITE_LIVEKIT_URL ?? "ws://localhost:7880";
 
-export default function ChatPanel({ isPaused, onTogglePause, onEnd, onEmotionChange, onPipelineError, livekitToken, studentName = "學生", sessionUuid }: ChatPanelProps) {
+export default function ChatPanel({ isPaused, onTogglePause, onEnd, onEmotionChange, onPipelineError, enableVoice, livekitToken, studentName = "學生", sessionUuid }: ChatPanelProps) {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [inputText, setInputText] = useState("");
   const [isRecording, setIsRecording] = useState(false);
@@ -110,8 +111,12 @@ export default function ChatPanel({ isPaused, onTogglePause, onEnd, onEmotionCha
     room.connect(LIVEKIT_URL, livekitToken, {
       autoSubscribe: true,
     }).then(() => {
-      // Unlock audio context on connect
       room.startAudio();
+      if (enableVoice) {
+        room.localParticipant.setMicrophoneEnabled(true)
+          .then(() => setIsRecording(true))
+          .catch((err) => console.error("[ChatPanel] Auto-enable mic failed:", err));
+      }
     }).catch((err) => {
       console.error("[ChatPanel] LiveKit connect failed:", err);
     });
