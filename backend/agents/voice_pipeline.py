@@ -58,7 +58,7 @@ class OpenAIRealtimeClient:
         self.on_agent_response: Optional[Callable[[str], None]] = None
         self.on_agent_transcript_delta: Optional[Callable[[str], None]] = None
 
-    async def connect(self, system_prompt: str):
+    async def connect(self, system_prompt: str, voice: str = "alloy"):
         if not self.api_key:
             print("[OpenAI] ❌ 錯誤：找不到 API Key，請檢查 .env 檔案中的 OPENAI_API_KEY")
             return
@@ -82,7 +82,7 @@ class OpenAIRealtimeClient:
                 "type": "session.update",
                 "session": {
                     "modalities": ["text", "audio"],
-                    "voice": "alloy",
+                    "voice": voice,
                     "instructions": system_prompt,
                     "tools": TOOLS_SCHEMA,
                     "tool_choice": "auto",
@@ -220,6 +220,7 @@ class StudentVoicePipeline:
         self.scenario_description: str = ""
         self.personality_type: str = ""
         self.domain_weights: dict = {}
+        self.personality_voice: str = "alloy"
 
     async def _load_dynamic_prompt(self) -> Optional[str]:
         room_name = self.room.name
@@ -258,6 +259,7 @@ class StudentVoicePipeline:
                         self.scenario_description = scenario.description or scenario.title
                         self.personality_type = personality.personality_type or ""
                         self.domain_weights = personality.domain_weights or {}
+                        self.personality_voice = personality.voice or "alloy"
                         self.last_emotion_scores = scenario.initial_emotions or {
                             "HAPPY": 0.10, "SAD": 0.20, "ANGRY": 0.05, "SURPRISED": 0.05,
                             "ANXIOUS": 0.30, "FRUSTRATED": 0.15, "CONFIDENT": 0.10,
@@ -311,7 +313,7 @@ class StudentVoicePipeline:
             return
 
         try:
-            await self.client.connect(system_prompt)
+            await self.client.connect(system_prompt, voice=self.personality_voice)
         except Exception:
             print("[Pipeline] ❌ 關鍵錯誤：無法初始化 OpenAI 連線，中斷任務。")
             return

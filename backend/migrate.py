@@ -46,6 +46,8 @@ MIGRATIONS = [
     "ALTER TABLE users ADD COLUMN IF NOT EXISTS is_active BOOLEAN NOT NULL DEFAULT TRUE",
     # Google 用戶沒有密碼，hashed_password 改為可 null
     "ALTER TABLE users ALTER COLUMN hashed_password DROP NOT NULL",
+    # 學生個性語音
+    "ALTER TABLE student_personalities ADD COLUMN IF NOT EXISTS voice VARCHAR(20) NOT NULL DEFAULT 'alloy'",
 ]
 
 

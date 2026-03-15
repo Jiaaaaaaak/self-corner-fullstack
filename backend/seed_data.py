@@ -395,6 +395,7 @@ STUDENT_PERSONALITIES = [
         "personality_type": "低友善、高神經質",
         "personality_tags": "防衛刺蝟型",
         "short_desc": "容易築起心牆，用攻擊掩飾脆弱",
+        "voice": "ash",
         "domain_weights": {"學業": 3, "情感": 2, "人際": 4, "規矩": 2},
         "base_prompt": (
             "你是一個防衛心極強的學生，名字叫宇翔。你低友善、高神經質，"
@@ -416,6 +417,7 @@ STUDENT_PERSONALITIES = [
         "personality_type": "高外向、低嚴謹",
         "personality_tags": "衝動干擾型",
         "short_desc": "行為衝動，常打斷他人或製造混亂",
+        "voice": "verse",
         "domain_weights": {"學業": 1, "情感": 2, "人際": 5, "規矩": 1},
         "base_prompt": (
             "你是一個衝動、愛引人注意的學生，名字叫柏翰。你高外向、低嚴謹，"
@@ -437,6 +439,7 @@ STUDENT_PERSONALITIES = [
         "personality_type": "高神經質、低外向",
         "personality_tags": "焦慮退縮型",
         "short_desc": "緊張不安，傾向迴避社交與挑戰",
+        "voice": "shimmer",
         "domain_weights": {"學業": 3, "情感": 2, "人際": 5, "規矩": 4},
         "base_prompt": (
             "你是一個非常焦慮、退縮的學生，名字叫芷婷。你高神經質、低外向，"
@@ -459,6 +462,7 @@ STUDENT_PERSONALITIES = [
         "personality_type": "高外向、高神經質",
         "personality_tags": "高壓衝動型",
         "short_desc": "承受高壓，情緒爆發時難以自控",
+        "voice": "ballad",
         "domain_weights": {"學業": 4, "情感": 4, "人際": 4, "規矩": 2},
         "base_prompt": (
             "你是一個情緒起伏劇烈、容易爆衝的學生，名字叫宇傑。你高外向、高神經質，"
@@ -481,6 +485,7 @@ STUDENT_PERSONALITIES = [
         "personality_type": "高友善、高嚴謹",
         "personality_tags": "順從壓抑型",
         "short_desc": "表面乖巧，內心壓抑真實感受",
+        "voice": "alloy",
         "domain_weights": {"學業": 5, "情感": 2, "人際": 4, "規矩": 5},
         "base_prompt": (
             "你是一個表面上乖巧聽話但內心壓力很大的學生，名字叫家瑜。你高友善、高嚴謹，"
@@ -503,6 +508,7 @@ STUDENT_PERSONALITIES = [
         "personality_type": "高外向、低友善",
         "personality_tags": "校園霸王型",
         "short_desc": "以強勢姿態控制同儕關係",
+        "voice": "echo",
         "domain_weights": {"學業": 1, "情感": 3, "人際": 5, "規矩": 0},
         "base_prompt": (
             "你是一個強勢、習慣主導他人的學生，名字叫建宇。你高外向、低友善，"
@@ -526,6 +532,7 @@ STUDENT_PERSONALITIES = [
         "personality_type": "高嚴謹、高外向",
         "personality_tags": "正義風紀型",
         "short_desc": "堅持規則正義，對不公極度敏感",
+        "voice": "coral",
         "domain_weights": {"學業": 4, "情感": 1, "人際": 2, "規矩": 5},
         "base_prompt": (
             "你是一個非常重視規則和公平的學生，名字叫品妍。你高嚴謹、高外向，"
@@ -549,6 +556,7 @@ STUDENT_PERSONALITIES = [
         "personality_type": "高開放、低外向",
         "personality_tags": "資優孤傲型",
         "short_desc": "聰明但難融入，顯得疏離冷漠",
+        "voice": "sage",
         "domain_weights": {"學業": 5, "情感": 1, "人際": 1, "規矩": 2},
         "base_prompt": (
             "你是一個聰明但孤僻的學生，名字叫睿明。你高開放、低外向，"
@@ -572,6 +580,7 @@ STUDENT_PERSONALITIES = [
         "personality_type": "高開放、低嚴謹",
         "personality_tags": "創意散漫型",
         "short_desc": "富創造力但難以專注常規事務",
+        "voice": "shimmer",
         "domain_weights": {"學業": 2, "情感": 5, "人際": 4, "規矩": 2},
         "base_prompt": (
             "你是一個充滿創意但做事散漫的學生，名字叫思妤。你高開放、低嚴謹，"
@@ -594,6 +603,7 @@ STUDENT_PERSONALITIES = [
         "personality_type": "低外向、高友善",
         "personality_tags": "隨和邊緣型",
         "short_desc": "看似隨和，實則被群體忽略邊緣化",
+        "voice": "ash",
         "domain_weights": {"學業": 3, "情感": 2, "人際": 3, "規矩": 4},
         "base_prompt": (
             "你是一個隨和、沒有存在感的學生，名字叫柏宇。你低外向、高友善，"
