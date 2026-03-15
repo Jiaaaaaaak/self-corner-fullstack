@@ -112,11 +112,6 @@ export default function ChatPanel({ isPaused, onTogglePause, onEnd, onEmotionCha
       autoSubscribe: true,
     }).then(() => {
       room.startAudio();
-      if (enableVoice) {
-        room.localParticipant.setMicrophoneEnabled(true)
-          .then(() => setIsRecording(true))
-          .catch((err) => console.error("[ChatPanel] Auto-enable mic failed:", err));
-      }
     }).catch((err) => {
       console.error("[ChatPanel] LiveKit connect failed:", err);
     });
@@ -130,6 +125,14 @@ export default function ChatPanel({ isPaused, onTogglePause, onEnd, onEmotionCha
       audioElementsRef.current = [];
     };
   }, [livekitToken]);
+
+  // 當使用者在 VoicePrompt 選擇開啟語音後（enableVoice 從 false → true），自動啟用麥克風
+  useEffect(() => {
+    if (!enableVoice || !roomRef.current) return;
+    roomRef.current.localParticipant.setMicrophoneEnabled(true)
+      .then(() => setIsRecording(true))
+      .catch((err) => console.error("[ChatPanel] Auto-enable mic failed:", err));
+  }, [enableVoice]);
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -204,6 +207,7 @@ export default function ChatPanel({ isPaused, onTogglePause, onEnd, onEmotionCha
               {msg.role === "student" && (
                 <div className="w-8 h-8 rounded-full overflow-hidden shrink-0 mr-2.5 self-end shadow-sm border-2 border-white/60 bg-white/90">
                   <img
+                    key={studentName}
                     src={`/avatars/${studentName}.png`}
                     alt={studentName}
                     className="w-full h-full object-cover"

@@ -365,6 +365,7 @@ export default function Chatroom() {
                   {/* Avatar thumbnail - static, from /avatars/ */}
                   <div className="w-12 h-12 rounded-full overflow-hidden border-2 border-white/80 shadow-lg shrink-0 bg-white/90">
                     <img
+                      key={studentName}
                       src={getAvatarPath(studentName)}
                       alt={studentName}
                       className="w-full h-full object-cover"
