@@ -666,43 +666,48 @@ TEST_USER = {
 
 async def migrate_db():
     """為既有資料庫新增欄位（冪等操作，可安全重複執行）"""
+    migrations = [
+        # scenarios
+        "ALTER TABLE scenarios ADD COLUMN IF NOT EXISTS student_prompt TEXT",
+        "ALTER TABLE scenarios ADD COLUMN IF NOT EXISTS initial_emotions JSONB",
+        "ALTER TABLE scenarios ADD COLUMN IF NOT EXISTS short_desc VARCHAR(200)",
+        "ALTER TABLE scenarios ADD COLUMN IF NOT EXISTS tags JSONB",
+        # users
+        "ALTER TABLE users ADD COLUMN IF NOT EXISTS school VARCHAR(200)",
+        "ALTER TABLE users ADD COLUMN IF NOT EXISTS experience_years VARCHAR(50)",
+        "ALTER TABLE users ADD COLUMN IF NOT EXISTS is_email_verified BOOLEAN NOT NULL DEFAULT FALSE",
+        "ALTER TABLE users ADD COLUMN IF NOT EXISTS google_id VARCHAR(200)",
+        "ALTER TABLE users ADD COLUMN IF NOT EXISTS auth_provider VARCHAR(20) NOT NULL DEFAULT 'local'",
+        "ALTER TABLE users ADD COLUMN IF NOT EXISTS is_active BOOLEAN NOT NULL DEFAULT TRUE",
+        "ALTER TABLE users ALTER COLUMN hashed_password DROP NOT NULL",
+        # student_personalities
+        "ALTER TABLE student_personalities ADD COLUMN IF NOT EXISTS domain_weights JSONB",
+        "ALTER TABLE student_personalities ADD COLUMN IF NOT EXISTS personality_tags VARCHAR(100)",
+        "ALTER TABLE student_personalities ADD COLUMN IF NOT EXISTS short_desc TEXT",
+        "ALTER TABLE student_personalities ADD COLUMN IF NOT EXISTS voice VARCHAR(20) NOT NULL DEFAULT 'alloy'",
+        # feedback_reports
+        "ALTER TABLE feedback_reports ADD COLUMN IF NOT EXISTS action_tips TEXT",
+        "ALTER TABLE feedback_reports ADD COLUMN IF NOT EXISTS selected_kist_cards JSONB",
+        "ALTER TABLE feedback_reports ADD COLUMN IF NOT EXISTS draft_highlights TEXT",
+        "ALTER TABLE feedback_reports ADD COLUMN IF NOT EXISTS draft_blind_spots TEXT",
+        "ALTER TABLE feedback_reports ADD COLUMN IF NOT EXISTS draft_action_tips TEXT",
+        "ALTER TABLE feedback_reports ADD COLUMN IF NOT EXISTS draft_sel_scores JSONB",
+        "ALTER TABLE feedback_reports ADD COLUMN IF NOT EXISTS critic_passed BOOLEAN",
+        "ALTER TABLE feedback_reports ADD COLUMN IF NOT EXISTS critic_critique TEXT",
+        "ALTER TABLE feedback_reports ADD COLUMN IF NOT EXISTS critic_revision_instructions TEXT",
+        # grade_levels 表
+        """CREATE TABLE IF NOT EXISTS grade_levels (
+            id VARCHAR(30) PRIMARY KEY,
+            label VARCHAR(20) NOT NULL,
+            "desc" VARCHAR(50) NOT NULL,
+            behavior_desc TEXT NOT NULL,
+            sort_order INTEGER DEFAULT 0
+        )""",
+    ]
+
     async with async_session_maker() as db:
-        await db.execute(text(
-            "ALTER TABLE scenarios ADD COLUMN IF NOT EXISTS student_prompt TEXT"
-        ))
-        await db.execute(text(
-            "ALTER TABLE scenarios ADD COLUMN IF NOT EXISTS initial_emotions JSONB"
-        ))
-        await db.execute(text(
-            "ALTER TABLE users ADD COLUMN IF NOT EXISTS school VARCHAR(200)"
-        ))
-        await db.execute(text(
-            "ALTER TABLE users ADD COLUMN IF NOT EXISTS experience_years VARCHAR(50)"
-        ))
-        await db.execute(text(
-            "ALTER TABLE student_personalities ADD COLUMN IF NOT EXISTS domain_weights JSONB"
-        ))
-        await db.execute(text(
-            "ALTER TABLE student_personalities ADD COLUMN IF NOT EXISTS personality_tags VARCHAR(100)"
-        ))
-        await db.execute(text(
-            "ALTER TABLE scenarios ADD COLUMN IF NOT EXISTS short_desc VARCHAR(200)"
-        ))
-        await db.execute(text(
-            "ALTER TABLE scenarios ADD COLUMN IF NOT EXISTS tags JSONB"
-        ))
-        await db.execute(text(
-            "ALTER TABLE student_personalities ADD COLUMN IF NOT EXISTS short_desc TEXT"
-        ))
-        await db.execute(text("""
-            CREATE TABLE IF NOT EXISTS grade_levels (
-                id VARCHAR(30) PRIMARY KEY,
-                label VARCHAR(20) NOT NULL,
-                "desc" VARCHAR(50) NOT NULL,
-                behavior_desc TEXT NOT NULL,
-                sort_order INTEGER DEFAULT 0
-            )
-        """))
+        for sql in migrations:
+            await db.execute(text(sql))
         await db.commit()
     print("[Migrate] 所有欄位更新完成。")
 
