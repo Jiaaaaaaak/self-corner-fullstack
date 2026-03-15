@@ -12,6 +12,8 @@ from typing import Optional, Callable
 from datetime import datetime
 from dotenv import load_dotenv
 
+load_dotenv()  # 必須在所有 os.getenv() 之前呼叫，否則子進程讀不到 .env
+
 from livekit import rtc
 from livekit.agents import JobContext, JobRequest, WorkerOptions, cli
 
@@ -34,8 +36,6 @@ _worker_engine = create_async_engine(_DATABASE_URL, poolclass=NullPool, future=T
 async_session_maker = async_sessionmaker(
     _worker_engine, class_=AsyncSession, expire_on_commit=False, autocommit=False, autoflush=False
 )
-
-load_dotenv()
 
 local_analyzer_llm = ChatOpenAI(model="gpt-3.5-turbo", temperature=0.3)
 
@@ -221,16 +221,7 @@ class StudentVoicePipeline:
         self.personality_type: str = ""
         self.domain_weights: dict = {}
 
-    async def _resolve_session_id(self) -> Optional[int]:
-        room_name = self.room.name
-        async with async_session_maker() as db:
-            result = await db.execute(
-                select(Session).where(Session.livekit_room_name == room_name)
-            )
-            session = result.scalar_one_or_none()
-            return session.id if session else None
-
-    async def _load_dynamic_prompt(self) -> str:
+    async def _load_dynamic_prompt(self) -> Optional[str]:
         room_name = self.room.name
         print(f"[Pipeline] Loading prompt for room: {room_name!r}")
 
@@ -278,6 +269,14 @@ class StudentVoicePipeline:
                             if grade_id:
                                 r = await db.execute(select(GradeLevel).where(GradeLevel.id == grade_id))
                                 grade = r.scalar_one_or_none()
+
+                        grade_label = f"{grade.label}（{grade.desc}）" if grade else "未指定年級"
+                        print(
+                            f"[Pipeline] ✅ Session 載入成功\n"
+                            f"           學生：{personality.name}（{personality.personality_type or '未知個性'}）\n"
+                            f"           年級：{grade_label}\n"
+                            f"           場景：{scenario.title}"
+                        )
                         return build_student_prompt(scenario, personality, grade=grade)
 
                     break
@@ -286,7 +285,8 @@ class StudentVoicePipeline:
                 print(f"[Pipeline] DB error: {e}")
                 break
 
-        return "請務必使用繁體中文（台灣用語）。你是一位國中一年級的學生，與老師進行 SEL 對話練習。"
+        print(f"[Pipeline] ❌ 無法載入 Session 設定（room: {room_name!r}），中止任務。")
+        return None
 
     async def start(self):
         # 1. 先連接 LiveKit 房間
@@ -296,7 +296,20 @@ class StudentVoicePipeline:
 
         # 2. 載入 Prompt 並連接 OpenAI
         system_prompt = await self._load_dynamic_prompt()
-        
+
+        if system_prompt is None:
+            try:
+                error_payload = json.dumps({
+                    "type": "pipeline_error",
+                    "code": "session_load_failed",
+                    "message": "無法載入對話設定，請返回重新選擇",
+                }).encode("utf-8")
+                await self.room.local_participant.publish_data(error_payload, reliable=True)
+                await asyncio.sleep(0.5)  # 給 LiveKit 時間傳遞訊息
+            except Exception as e:
+                print(f"[Pipeline] ⚠️ 無法傳送錯誤訊號: {e}")
+            return
+
         try:
             await self.client.connect(system_prompt)
         except Exception:
@@ -360,7 +373,6 @@ class StudentVoicePipeline:
         if self.client.ws:
             await self.client.ws.close()
 
-    # ... (其餘 handle_xxx 函式保持不變)
     async def handle_audio_delta(self, pcm_data: bytes):
         samples_count = len(pcm_data) // 2
         frame = rtc.AudioFrame(data=pcm_data, sample_rate=SAMPLE_RATE, num_channels=CHANNELS, samples_per_channel=samples_count)
@@ -424,7 +436,8 @@ class StudentVoicePipeline:
                     db.add(EmotionLog(session_id=self.db_session_id, turn_number=self.turn_count, teacher_input=teacher_input, 
                                       timestamp=datetime.utcnow(), **{k.lower(): v for k, v in emotion_scores.items()}))
                     await db.commit()
-        except: pass
+        except Exception as e:
+            print(f"[Pipeline] ⚠️ 情緒 log 寫入失敗（turn {self.turn_count}）: {e}")
         return emotion_json_str
 
 # =============================================================================

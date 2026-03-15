@@ -199,6 +199,24 @@ export default function Chatroom() {
     setElapsedSeconds(0);
   };
 
+  const handlePipelineError = async () => {
+    const uuid = currentSessionUuid;
+    // 先重設狀態讓 UI 回到選擇畫面，避免使用者看到空白的聊天室
+    setIsStarted(false);
+    setIsEnding(false);
+    setActiveScenario(null);
+    setLivekitToken(null);
+    setCurrentSessionUuid(null);
+    setElapsedSeconds(0);
+    setStudentEmotion("neutral");
+    setDisplayedEmotion("neutral");
+    // 清理 session
+    if (uuid) {
+      api.post(`/session/${uuid}/abandon`).catch(() => {});
+    }
+    alert("系統無法載入對話設定（可能是資料庫連線問題），請重新選擇情境再試一次。");
+  };
+
   const handleCloseDetail = () => {
     setSelectedScenarioId(null);
   };
@@ -422,6 +440,7 @@ export default function Chatroom() {
               onTogglePause={handleTogglePause}
               onEnd={handleEnd}
               onEmotionChange={(emo) => setStudentEmotion(emo as StudentEmotion)}
+              onPipelineError={handlePipelineError}
               livekitToken={livekitToken}
               studentName={studentName}
               sessionUuid={currentSessionUuid}

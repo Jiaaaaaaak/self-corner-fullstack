@@ -26,6 +26,7 @@ interface ChatPanelProps {
   onTogglePause: () => void;
   onEnd: () => void;
   onEmotionChange?: (emotion: string) => void;
+  onPipelineError?: () => void;
   livekitToken: string | null;
   studentName?: string;
   sessionUuid?: string | null;
@@ -33,7 +34,7 @@ interface ChatPanelProps {
 
 const LIVEKIT_URL = import.meta.env.VITE_LIVEKIT_URL ?? "ws://localhost:7880";
 
-export default function ChatPanel({ isPaused, onTogglePause, onEnd, onEmotionChange, livekitToken, studentName = "學生", sessionUuid }: ChatPanelProps) {
+export default function ChatPanel({ isPaused, onTogglePause, onEnd, onEmotionChange, onPipelineError, livekitToken, studentName = "學生", sessionUuid }: ChatPanelProps) {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [inputText, setInputText] = useState("");
   const [isRecording, setIsRecording] = useState(false);
@@ -85,6 +86,9 @@ export default function ChatPanel({ isPaused, onTogglePause, onEnd, onEmotionCha
         } else if (msg.type === "user_transcription" && msg.text) {
           setMessages((prev) => [...prev, { role: "teacher", content: msg.text }]);
           setIsThinking(true);
+        } else if (msg.type === "pipeline_error") {
+          console.error("[ChatPanel] pipeline_error received:", msg.code, msg.message);
+          onPipelineError?.();
         }
       } catch {
         // ignore malformed messages
