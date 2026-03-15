@@ -259,6 +259,29 @@ async def end_session(
     return {"status": "ended", "report_ready": True}
 
 
+@router.post("/{session_uuid}/abandon")
+async def abandon_session(
+    session_uuid: str,
+    db: AsyncSession = Depends(get_db),
+    user_id: int = Depends(get_current_user_id),
+):
+    """
+    快速標記 Session 為已結束，不觸發教練分析。
+    用於使用者按上一頁等非正常離開的場景，確保 Agent Worker 能收到 room 關閉訊號後正確清理。
+    """
+    db_manager = DBManager(db)
+    session = await db_manager.get_session_by_uuid(session_uuid)
+    if not session:
+        raise HTTPException(status_code=404, detail="Session 不存在")
+    if session.user_id != user_id:
+        raise HTTPException(status_code=403, detail="無權操作此 Session")
+    if not session.is_active:
+        return {"status": "already_ended"}
+    session_manager = SessionManager(db)
+    await session_manager.end_session(session_uuid)
+    return {"status": "abandoned"}
+
+
 @router.get("/{session_uuid}/emotion/latest")
 async def get_latest_emotion(
     session_uuid: str,

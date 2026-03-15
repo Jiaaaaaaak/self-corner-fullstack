@@ -16,10 +16,24 @@ from livekit import rtc
 from livekit.agents import JobContext, JobRequest, WorkerOptions, cli
 
 from agents.prompts import build_student_prompt, TOOLS_SCHEMA, build_semantic_analysis_prompt
-from database import async_session_maker
 from models import EmotionLog, Session, Scenario, StudentPersonality, Transcript, GradeLevel
 from langchain_openai import ChatOpenAI
 from sqlalchemy import select
+from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession, async_sessionmaker
+from sqlalchemy.pool import NullPool
+
+# Worker 子進程需獨立建立 NullPool 引擎，避免 event loop 跨進程綁定問題
+_DATABASE_URL = os.getenv(
+    "DATABASE_URL",
+    "postgresql+asyncpg://postgres:P%40ssw0rd@localhost:5432/self_corner"
+)
+if _DATABASE_URL.startswith("postgres://"):
+    _DATABASE_URL = _DATABASE_URL.replace("postgres://", "postgresql+asyncpg://", 1)
+
+_worker_engine = create_async_engine(_DATABASE_URL, poolclass=NullPool, future=True)
+async_session_maker = async_sessionmaker(
+    _worker_engine, class_=AsyncSession, expire_on_commit=False, autocommit=False, autoflush=False
+)
 
 load_dotenv()
 
@@ -323,9 +337,23 @@ class StudentVoicePipeline:
                     if publication.track:
                         asyncio.create_task(self.handle_track_audio(publication.track))
 
-        shutdown_future = asyncio.Future()
-        self.ctx.add_shutdown_callback(lambda reason: shutdown_future.set_result(reason) if not shutdown_future.done() else None)
-        
+        shutdown_future: asyncio.Future = asyncio.Future()
+
+        @self.room.on("participant_disconnected")
+        def on_participant_disconnected(_participant):
+            async def _delayed_shutdown():
+                await asyncio.sleep(5)
+                if not self.room.remote_participants and not shutdown_future.done():
+                    print("[Pipeline] 參與者已離開超過 5 秒，觸發關閉。")
+                    shutdown_future.set_result("participant_disconnected")
+            asyncio.create_task(_delayed_shutdown())
+
+        async def _on_shutdown(reason: str = ""):
+            if not shutdown_future.done():
+                shutdown_future.set_result(reason or "framework_shutdown")
+
+        self.ctx.add_shutdown_callback(_on_shutdown)
+
         await shutdown_future
 
         audio_task.cancel()

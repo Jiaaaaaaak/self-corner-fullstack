@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import AppLayout from "@/components/AppLayout";
 import classroomBg from "@/assets/classroom-background.png";
@@ -50,6 +50,25 @@ export default function Chatroom() {
   const [soulCardsOpen, setSoulCardsOpen] = useState(false);
   const [livekitToken, setLivekitToken] = useState<string | null>(null);
   const [currentSessionUuid, setCurrentSessionUuid] = useState<string | null>(null);
+
+  // Refs for unmount cleanup (避免 stale closure 問題)
+  const currentSessionUuidRef = useRef<string | null>(null);
+  const isStartedRef = useRef(false);
+  const isEndingRef = useRef(false);
+
+  useEffect(() => { currentSessionUuidRef.current = currentSessionUuid; }, [currentSessionUuid]);
+  useEffect(() => { isStartedRef.current = isStarted; }, [isStarted]);
+  useEffect(() => { isEndingRef.current = isEnding; }, [isEnding]);
+
+  // 離開頁面時若 session 仍 active 且非正常結束，呼叫 abandon
+  useEffect(() => {
+    return () => {
+      const uuid = currentSessionUuidRef.current;
+      if (isStartedRef.current && !isEndingRef.current && uuid) {
+        api.post(`/session/${uuid}/abandon`).catch(() => {});
+      }
+    };
+  }, []);
 
   // Cross-fade emotion transition
   useEffect(() => {
