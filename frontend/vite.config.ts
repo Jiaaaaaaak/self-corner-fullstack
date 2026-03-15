@@ -8,6 +8,7 @@ export default defineConfig(({ mode }) => ({
   server: {
     host: "::",
     port: 8080,
+    allowedHosts: true, // 允許 ngrok / 任意外部 host 存取 Vite dev server
     hmr: {
       overlay: false,
     },
