@@ -1,3 +1,4 @@
+import { useRef, useEffect } from "react";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Textarea } from "@/components/ui/textarea";
@@ -37,6 +38,12 @@ export default function FeedbackTabs({
   onSendCoach,
   isSending,
 }: FeedbackTabsProps) {
+  const chatBottomRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    chatBottomRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [chatHistory, isSending]);
+
   return (
     <Tabs defaultValue="expert" className="flex flex-col flex-1 min-h-0">
       <div className="px-0 pt-0 pb-0 border-b border-[#E5E2D9] bg-[#FAF9F6]/30 shrink-0">
@@ -126,6 +133,7 @@ export default function FeedbackTabs({
                   </div>
                 </div>
               )}
+              <div ref={chatBottomRef} />
             </div>
           </div>
 
