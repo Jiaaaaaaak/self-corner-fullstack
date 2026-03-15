@@ -60,15 +60,28 @@ interface ChatMessage {
 
 // Emotion line colors for the 9 emotions
 const EMOTION_COLORS: Record<string, string> = {
-  happy: "#F59E0B",
-  sad: "#6366F1",
-  angry: "#EF4444",
-  surprised: "#8B5CF6",
-  anxious: "#F97316",
-  frustrated: "#DC2626",
-  confident: "#10B981",
-  curious: "#3B82F6",
-  neutral: "#9CA3AF",
+  happy: "#F59E0B",      // 琥珀
+  sad: "#6366F1",        // 靛藍
+  angry: "#EF4444",      // 紅
+  surprised: "#EC4899",  // 粉紅（原紫→改）
+  anxious: "#F97316",    // 橘
+  frustrated: "#8B5CF6", // 紫（原深紅→改）
+  confident: "#10B981",  // 綠
+  curious: "#06B6D4",    // 青（原藍→改）
+  neutral: "#9CA3AF",    // 灰
+};
+
+// 線條樣式：同色系加虛線區隔
+const EMOTION_DASH: Record<string, string | undefined> = {
+  happy: undefined,       // 實線
+  sad: undefined,         // 實線
+  angry: undefined,       // 實線
+  surprised: "6 3",       // 虛線（與紫/靛區隔）
+  anxious: "3 3",         // 點線（與琥珀區隔）
+  frustrated: "8 3",      // 長虛線（與靛藍區隔）
+  confident: undefined,   // 實線
+  curious: "4 4",         // 短虛線（與靛藍/紫區隔）
+  neutral: "2 5",         // 點線
 };
 
 const EMOTION_LABELS: Record<string, string> = {
@@ -297,10 +310,30 @@ export default function Feedback() {
                       <Tooltip
                         contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 10px 25px rgba(0,0,0,0.1)', fontSize: 12 }}
                         formatter={(value: number, name: string) => [`${value}%`, EMOTION_LABELS[name] ?? name]}
+                        itemSorter={(item) => -(item.value as number)}
                       />
                       <Legend
-                        formatter={(value) => EMOTION_LABELS[value] ?? value}
                         wrapperStyle={{ fontSize: 10, paddingTop: 8 }}
+                        content={({ payload }) => (
+                          <div className="flex flex-wrap gap-x-4 gap-y-1 justify-center mt-2">
+                            {(payload ?? []).map((entry) => {
+                              const key = entry.dataKey as string;
+                              return (
+                                <div key={key} className="flex items-center gap-1.5">
+                                  <svg width="24" height="10">
+                                    <line
+                                      x1="0" y1="5" x2="24" y2="5"
+                                      stroke={EMOTION_COLORS[key]}
+                                      strokeWidth="2"
+                                      strokeDasharray={EMOTION_DASH[key]}
+                                    />
+                                  </svg>
+                                  <span style={{ color: "#706C61" }}>{EMOTION_LABELS[key] ?? key}</span>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        )}
                       />
                       {Object.keys(EMOTION_COLORS).map((key) => (
                         <Line
@@ -309,6 +342,7 @@ export default function Feedback() {
                           dataKey={key}
                           stroke={EMOTION_COLORS[key]}
                           strokeWidth={2}
+                          strokeDasharray={EMOTION_DASH[key]}
                           dot={false}
                           activeDot={{ r: 4 }}
                         />
