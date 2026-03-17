@@ -51,6 +51,7 @@ export default function Chatroom() {
   const [livekitToken, setLivekitToken] = useState<string | null>(null);
   const [currentSessionUuid, setCurrentSessionUuid] = useState<string | null>(null);
   const [enableVoice, setEnableVoice] = useState(false);
+  const [isRetrying, setIsRetrying] = useState(!!location.state?.retryScenarioId);
 
   // Refs for unmount cleanup (避免 stale closure 問題)
   const currentSessionUuidRef = useRef<string | null>(null);
@@ -173,7 +174,8 @@ export default function Chatroom() {
       .catch((err) => {
         console.error("[Chatroom] Retry session creation failed:", err);
         alert("無法建立練習，請重新整理頁面後再試。");
-      });
+      })
+      .finally(() => setIsRetrying(false));
   }, [location.state, allScenarios]);
 
   const formatTime = (totalSeconds: number) => {
@@ -434,8 +436,18 @@ export default function Chatroom() {
             </div>
           )}
 
+          {/* RETRY LOADING */}
+          {isRetrying && !isStarted && (
+            <div className="absolute inset-0 z-50 bg-[#FAF9F6] flex items-center justify-center">
+              <div className="flex flex-col items-center gap-4">
+                <Loader2 className="w-10 h-10 text-primary animate-spin" />
+                <p className="text-sm font-medium text-[#706C61]">正在載入上次的情境設定...</p>
+              </div>
+            </div>
+          )}
+
           {/* 1. SKILL TREE MAP */}
-          {!isStarted && !pendingScenario && !selectedScenarioId && (
+          {!isStarted && !isRetrying && !pendingScenario && !selectedScenarioId && (
             <SkillTreeMap
               groups={competencyGroups}
               onSelectScenario={handleCardClick}
@@ -444,7 +456,7 @@ export default function Chatroom() {
           )}
 
           {/* 2. DETAIL VIEW */}
-          {!isStarted && selectedScenarioId && (() => {
+          {!isStarted && !isRetrying && selectedScenarioId && (() => {
             const found = allScenarios.find((s) => s.id === selectedScenarioId);
             if (!found) return null;
             return (
@@ -457,7 +469,7 @@ export default function Chatroom() {
           })()}
 
           {/* 2.5 STUDENT PROFILE SELECTION */}
-          {!isStarted && pendingScenario && (
+          {!isStarted && !isRetrying && pendingScenario && (
             <StudentProfileSelect
               onConfirm={handleProfileConfirm}
               onBack={handleProfileBack}

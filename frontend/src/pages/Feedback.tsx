@@ -107,7 +107,8 @@ const SEL_LABELS: Record<string, string> = {
 export default function Feedback() {
   const navigate = useNavigate();
   const location = useLocation();
-  const { sessionUuid } = useAuthStore();
+  const { sessionUuid: storeSessionUuid, setSessionUuid } = useAuthStore();
+  const sessionUuid = (location.state?.sessionUuid as string | undefined) ?? storeSessionUuid;
 
   const [report, setReport] = useState<FeedbackReport | null>(null);
   const [loading, setLoading] = useState(true);
@@ -115,6 +116,12 @@ export default function Feedback() {
   const [userInput, setUserInput] = useState("");
   const [chatHistory, setChatHistory] = useState<ChatMessage[]>([]);
   const [isSending, setIsSending] = useState(false);
+
+  useEffect(() => {
+    if (location.state?.sessionUuid) {
+      setSessionUuid(location.state.sessionUuid);
+    }
+  }, [location.state?.sessionUuid]);
 
   useEffect(() => {
     window.scrollTo(0, 0);
@@ -143,9 +150,15 @@ export default function Feedback() {
   }, [sessionUuid]);
 
   const handleRetry = () => {
+    const scenarioId = location.state?.currentScenarioId ?? null;
+    if (!scenarioId) {
+      alert("無法取得原始情境設定，將跳回選擇頁面讓您重新選擇。");
+      navigate("/chatroom");
+      return;
+    }
     navigate("/chatroom", {
       state: {
-        retryScenarioId: location.state?.currentScenarioId ?? null,
+        retryScenarioId: scenarioId,
         retryPersonalityKey: location.state?.retryPersonalityKey ?? null,
         retryGradeId: location.state?.retryGradeId ?? null,
         retryEnableVoice: location.state?.retryEnableVoice ?? false,

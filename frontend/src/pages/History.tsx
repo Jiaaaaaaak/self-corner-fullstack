@@ -13,6 +13,9 @@ interface HistoryItem {
   scenario_title: string | null;
   rounds: number;
   duration: number | null;
+  scenario_id: number | null;
+  personality_key: string | null;
+  grade_id: string | null;
 }
 
 function formatDuration(seconds: number | null): string {
@@ -61,7 +64,15 @@ export default function History() {
 
   const handleItemClick = (item: HistoryItem) => {
     setSessionUuid(item.session_uuid);
-    navigate("/feedback");
+    navigate("/feedback", {
+      state: {
+        sessionUuid: item.session_uuid,
+        currentScenarioId: item.scenario_id ?? null,
+        retryPersonalityKey: item.personality_key ?? null,
+        retryGradeId: item.grade_id ?? null,
+        retryEnableVoice: false,
+      },
+    });
   };
 
   return (
