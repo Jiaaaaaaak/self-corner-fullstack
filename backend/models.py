@@ -71,6 +71,8 @@ class StudentPersonality(Base):
     # 個性標籤，例如 "防衛刺蝟型"
     short_desc: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     # 前端顯示的短描述，例如 "容易築起心牆，用攻擊掩飾脆弱"
+    voice: Mapped[str] = mapped_column(String(20), nullable=False, default="alloy")
+    # OpenAI Realtime API 語音名稱
 
     sessions: Mapped[list["Session"]] = relationship("Session", back_populates="personality")
 

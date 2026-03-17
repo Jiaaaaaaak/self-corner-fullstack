@@ -26,6 +26,8 @@ interface ChatPanelProps {
   onTogglePause: () => void;
   onEnd: () => void;
   onEmotionChange?: (emotion: string) => void;
+  onPipelineError?: () => void;
+  enableVoice?: boolean;
   livekitToken: string | null;
   studentName?: string;
   sessionUuid?: string | null;
@@ -33,7 +35,7 @@ interface ChatPanelProps {
 
 const LIVEKIT_URL = import.meta.env.VITE_LIVEKIT_URL ?? "ws://localhost:7880";
 
-export default function ChatPanel({ isPaused, onTogglePause, onEnd, onEmotionChange, livekitToken, studentName = "學生", sessionUuid }: ChatPanelProps) {
+export default function ChatPanel({ isPaused, onTogglePause, onEnd, onEmotionChange, onPipelineError, enableVoice, livekitToken, studentName = "學生", sessionUuid }: ChatPanelProps) {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [inputText, setInputText] = useState("");
   const [isRecording, setIsRecording] = useState(false);
@@ -85,6 +87,9 @@ export default function ChatPanel({ isPaused, onTogglePause, onEnd, onEmotionCha
         } else if (msg.type === "user_transcription" && msg.text) {
           setMessages((prev) => [...prev, { role: "teacher", content: msg.text }]);
           setIsThinking(true);
+        } else if (msg.type === "pipeline_error") {
+          console.error("[ChatPanel] pipeline_error received:", msg.code, msg.message);
+          onPipelineError?.();
         }
       } catch {
         // ignore malformed messages
@@ -106,7 +111,6 @@ export default function ChatPanel({ isPaused, onTogglePause, onEnd, onEmotionCha
     room.connect(LIVEKIT_URL, livekitToken, {
       autoSubscribe: true,
     }).then(() => {
-      // Unlock audio context on connect
       room.startAudio();
     }).catch((err) => {
       console.error("[ChatPanel] LiveKit connect failed:", err);
@@ -121,6 +125,14 @@ export default function ChatPanel({ isPaused, onTogglePause, onEnd, onEmotionCha
       audioElementsRef.current = [];
     };
   }, [livekitToken]);
+
+  // 當使用者在 VoicePrompt 選擇開啟語音後（enableVoice 從 false → true），自動啟用麥克風
+  useEffect(() => {
+    if (!enableVoice || !roomRef.current) return;
+    roomRef.current.localParticipant.setMicrophoneEnabled(true)
+      .then(() => setIsRecording(true))
+      .catch((err) => console.error("[ChatPanel] Auto-enable mic failed:", err));
+  }, [enableVoice]);
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -195,6 +207,7 @@ export default function ChatPanel({ isPaused, onTogglePause, onEnd, onEmotionCha
               {msg.role === "student" && (
                 <div className="w-8 h-8 rounded-full overflow-hidden shrink-0 mr-2.5 self-end shadow-sm border-2 border-white/60 bg-white/90">
                   <img
+                    key={studentName}
                     src={`/avatars/${studentName}.png`}
                     alt={studentName}
                     className="w-full h-full object-cover"

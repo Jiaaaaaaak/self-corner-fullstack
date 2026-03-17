@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import AppLayout from "@/components/AppLayout";
 import classroomBg from "@/assets/classroom-background.png";
@@ -50,6 +50,27 @@ export default function Chatroom() {
   const [soulCardsOpen, setSoulCardsOpen] = useState(false);
   const [livekitToken, setLivekitToken] = useState<string | null>(null);
   const [currentSessionUuid, setCurrentSessionUuid] = useState<string | null>(null);
+  const [enableVoice, setEnableVoice] = useState(false);
+  const [isRetrying, setIsRetrying] = useState(!!location.state?.retryScenarioId);
+
+  // Refs for unmount cleanup (避免 stale closure 問題)
+  const currentSessionUuidRef = useRef<string | null>(null);
+  const isStartedRef = useRef(false);
+  const isEndingRef = useRef(false);
+
+  useEffect(() => { currentSessionUuidRef.current = currentSessionUuid; }, [currentSessionUuid]);
+  useEffect(() => { isStartedRef.current = isStarted; }, [isStarted]);
+  useEffect(() => { isEndingRef.current = isEnding; }, [isEnding]);
+
+  // 離開頁面時若 session 仍 active 且非正常結束，呼叫 abandon
+  useEffect(() => {
+    return () => {
+      const uuid = currentSessionUuidRef.current;
+      if (isStartedRef.current && !isEndingRef.current && uuid) {
+        api.post(`/session/${uuid}/abandon`).catch(() => {});
+      }
+    };
+  }, []);
 
   // Cross-fade emotion transition
   useEffect(() => {
@@ -101,18 +122,60 @@ export default function Chatroom() {
     return () => clearInterval(interval);
   }, [isStarted, isPaused]);
 
-  // Handle Retry logic
+  // 建立 Session 並取得 LiveKit Token（抽出供正常流程與重試共用）
+  const doStartSession = async (
+    scenario: Scenario,
+    personalityKey: string | null,
+    gradeId: string | null,
+  ) => {
+    const body: any = { scenario_id: scenario.id };
+    if (personalityKey) body.personality_key = personalityKey;
+    if (gradeId) body.grade_id = gradeId;
+
+    const sessionRes = await api.post("/session/create", body);
+    const uuid: string = sessionRes.data.session_uuid;
+    setCurrentSessionUuid(uuid);
+    setSessionUuid(uuid);
+    if (sessionRes.data.student_name) {
+      const name: string = sessionRes.data.student_name;
+      setStudentName(name);
+      preloadCharacterImages(name);
+    }
+    if (sessionRes.data.initial_emotion) {
+      const initEmo = sessionRes.data.initial_emotion as StudentEmotion;
+      setStudentEmotion(initEmo);
+      setDisplayedEmotion(initEmo);
+    }
+    const tokenRes = await api.post("/livekit/token", { session_uuid: uuid });
+    setLivekitToken(tokenRes.data.token);
+  };
+
+  // Handle Retry logic（直接帶入前次設定，跳過選擇流程）
   useEffect(() => {
     const retryId = location.state?.retryScenarioId;
-    if (retryId && allScenarios.length > 0) {
-      const scenario = allScenarios.find((s) => s.id === retryId);
-      if (scenario) {
-        setActiveScenario(scenario);
+    if (!retryId || allScenarios.length === 0) return;
+
+    const scenario = allScenarios.find((s) => s.id === retryId);
+    if (!scenario) return;
+
+    window.history.replaceState({}, document.title);
+    setActiveScenario(scenario);
+    const personalityKey = location.state?.retryPersonalityKey ?? null;
+    const gradeId = location.state?.retryGradeId ?? null;
+    const voiceEnabled = location.state?.retryEnableVoice ?? false;
+    setEnableVoice(voiceEnabled);
+
+    doStartSession(scenario, personalityKey, gradeId)
+      .then(() => {
         setIsStarted(true);
+        setIsPaused(false);
         setElapsedSeconds(0);
-        window.history.replaceState({}, document.title);
-      }
-    }
+      })
+      .catch((err) => {
+        console.error("[Chatroom] Retry session creation failed:", err);
+        alert("無法建立練習，請重新整理頁面後再試。");
+      })
+      .finally(() => setIsRetrying(false));
   }, [location.state, allScenarios]);
 
   const formatTime = (totalSeconds: number) => {
@@ -130,11 +193,28 @@ export default function Chatroom() {
     setSelectedScenarioId(null);
   };
 
-  const handleProfileConfirm = (profile: StudentProfile) => {
+  const handleProfileConfirm = async (profile: StudentProfile) => {
     setStudentProfile(profile);
-    setActiveScenario(pendingScenario);
+    const scenario = pendingScenario!;
+    setActiveScenario(scenario);
     setPendingScenario(null);
-    setVoicePromptOpen(true);
+    setIsStarted(true);        // 先切換到對話頁面作為背景
+    setIsPaused(false);
+    setElapsedSeconds(0);
+    setVoicePromptOpen(true);  // 語音選擇 dialog 疊在對話頁面上
+    try {
+      await doStartSession(
+        scenario,
+        profile.personality ?? null,
+        profile.grade ?? null,
+      );
+    } catch (err) {
+      console.error("[Chatroom] Failed to create session:", err);
+      setIsStarted(false);
+      setVoicePromptOpen(false);
+      setActiveScenario(null);
+      alert("無法建立練習，請重新整理頁面後再試。");
+    }
   };
 
   const handleProfileBack = () => {
@@ -142,42 +222,27 @@ export default function Chatroom() {
     setSelectedScenarioId(null);
   };
 
-  const handleVoiceConfirm = async (_enableVoice: boolean) => {
+  const handleVoiceConfirm = (voiceEnabled: boolean) => {
+    setEnableVoice(voiceEnabled);
     setVoicePromptOpen(false);
-    if (!activeScenario) return;
+  };
 
-    try {
-      const body: any = { scenario_id: activeScenario.id };
-      if (studentProfile) {
-        body.personality_key = studentProfile.personality;
-        body.grade_id = studentProfile.grade;
-      }
-      const sessionRes = await api.post("/session/create", body);
-      const uuid: string = sessionRes.data.session_uuid;
-      setCurrentSessionUuid(uuid);
-      setSessionUuid(uuid);
-      if (sessionRes.data.student_name) {
-        const name: string = sessionRes.data.student_name;
-        setStudentName(name);
-        preloadCharacterImages(name);
-      }
-      if (sessionRes.data.initial_emotion) {
-        const initEmo = sessionRes.data.initial_emotion as StudentEmotion;
-        setStudentEmotion(initEmo);
-        setDisplayedEmotion(initEmo);
-      }
-
-      const tokenRes = await api.post("/livekit/token", { session_uuid: uuid });
-      setLivekitToken(tokenRes.data.token);
-    } catch (err) {
-      console.error("[Chatroom] Failed to create session or get token:", err);
-      alert("無法建立練習，請重新整理頁面後再試。");
-      return;
-    }
-
-    setIsStarted(true);
-    setIsPaused(false);
+  const handlePipelineError = async () => {
+    const uuid = currentSessionUuid;
+    // 先重設狀態讓 UI 回到選擇畫面，避免使用者看到空白的聊天室
+    setIsStarted(false);
+    setIsEnding(false);
+    setActiveScenario(null);
+    setLivekitToken(null);
+    setCurrentSessionUuid(null);
     setElapsedSeconds(0);
+    setStudentEmotion("neutral");
+    setDisplayedEmotion("neutral");
+    // 清理 session
+    if (uuid) {
+      api.post(`/session/${uuid}/abandon`).catch(() => {});
+    }
+    alert("系統無法載入對話設定（可能是資料庫連線問題），請重新選擇情境再試一次。");
   };
 
   const handleCloseDetail = () => {
@@ -195,7 +260,14 @@ export default function Chatroom() {
         console.error("[Chatroom] Failed to end session:", err);
       }
     }
-    navigate("/feedback", { state: { currentScenarioId: activeScenario?.id } });
+    navigate("/feedback", {
+      state: {
+        currentScenarioId: activeScenario?.id,
+        retryPersonalityKey: studentProfile?.personality ?? null,
+        retryGradeId: studentProfile?.grade ?? null,
+        retryEnableVoice: enableVoice,
+      },
+    });
   };
 
   const emotionLabel = () => {
@@ -295,6 +367,7 @@ export default function Chatroom() {
                   {/* Avatar thumbnail - static, from /avatars/ */}
                   <div className="w-12 h-12 rounded-full overflow-hidden border-2 border-white/80 shadow-lg shrink-0 bg-white/90">
                     <img
+                      key={studentName}
                       src={getAvatarPath(studentName)}
                       alt={studentName}
                       className="w-full h-full object-cover"
@@ -363,8 +436,18 @@ export default function Chatroom() {
             </div>
           )}
 
+          {/* RETRY LOADING */}
+          {isRetrying && !isStarted && (
+            <div className="absolute inset-0 z-50 bg-[#FAF9F6] flex items-center justify-center">
+              <div className="flex flex-col items-center gap-4">
+                <Loader2 className="w-10 h-10 text-primary animate-spin" />
+                <p className="text-sm font-medium text-[#706C61]">正在載入上次的情境設定...</p>
+              </div>
+            </div>
+          )}
+
           {/* 1. SKILL TREE MAP */}
-          {!isStarted && !pendingScenario && !selectedScenarioId && (
+          {!isStarted && !isRetrying && !pendingScenario && !selectedScenarioId && (
             <SkillTreeMap
               groups={competencyGroups}
               onSelectScenario={handleCardClick}
@@ -373,7 +456,7 @@ export default function Chatroom() {
           )}
 
           {/* 2. DETAIL VIEW */}
-          {!isStarted && selectedScenarioId && (() => {
+          {!isStarted && !isRetrying && selectedScenarioId && (() => {
             const found = allScenarios.find((s) => s.id === selectedScenarioId);
             if (!found) return null;
             return (
@@ -386,7 +469,7 @@ export default function Chatroom() {
           })()}
 
           {/* 2.5 STUDENT PROFILE SELECTION */}
-          {!isStarted && pendingScenario && (
+          {!isStarted && !isRetrying && pendingScenario && (
             <StudentProfileSelect
               onConfirm={handleProfileConfirm}
               onBack={handleProfileBack}
@@ -403,6 +486,8 @@ export default function Chatroom() {
               onTogglePause={handleTogglePause}
               onEnd={handleEnd}
               onEmotionChange={(emo) => setStudentEmotion(emo as StudentEmotion)}
+              onPipelineError={handlePipelineError}
+              enableVoice={enableVoice}
               livekitToken={livekitToken}
               studentName={studentName}
               sessionUuid={currentSessionUuid}
@@ -448,9 +533,13 @@ export default function Chatroom() {
         }}
       />
 
-      {/* Voice Prompt Dialog */}
-      <Dialog open={voicePromptOpen} onOpenChange={setVoicePromptOpen}>
-        <DialogContent className="sm:max-w-sm border-none p-0 overflow-hidden rounded-2xl shadow-2xl">
+      {/* Voice Prompt Dialog — 不可關閉，確保使用者必須做出選擇 */}
+      <Dialog open={voicePromptOpen} onOpenChange={() => {}}>
+        <DialogContent
+          className="sm:max-w-sm border-none p-0 overflow-hidden rounded-2xl shadow-2xl [&>button]:hidden"
+          onInteractOutside={(e) => e.preventDefault()}
+          onEscapeKeyDown={(e) => e.preventDefault()}
+        >
           <div className="p-8 flex flex-col items-center gap-6 text-center">
             <div className="w-16 h-16 bg-primary/10 rounded-full flex items-center justify-center">
               <Mic className="w-8 h-8 text-primary" />

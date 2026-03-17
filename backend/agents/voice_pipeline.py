@@ -12,16 +12,30 @@ from typing import Optional, Callable
 from datetime import datetime
 from dotenv import load_dotenv
 
+load_dotenv()  # 必須在所有 os.getenv() 之前呼叫，否則子進程讀不到 .env
+
 from livekit import rtc
 from livekit.agents import JobContext, JobRequest, WorkerOptions, cli
 
 from agents.prompts import build_student_prompt, TOOLS_SCHEMA, build_semantic_analysis_prompt
-from database import async_session_maker
 from models import EmotionLog, Session, Scenario, StudentPersonality, Transcript, GradeLevel
 from langchain_openai import ChatOpenAI
 from sqlalchemy import select
+from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession, async_sessionmaker
+from sqlalchemy.pool import NullPool
 
-load_dotenv()
+# Worker 子進程需獨立建立 NullPool 引擎，避免 event loop 跨進程綁定問題
+_DATABASE_URL = os.getenv(
+    "DATABASE_URL",
+    "postgresql+asyncpg://postgres:P%40ssw0rd@localhost:5432/self_corner"
+)
+if _DATABASE_URL.startswith("postgres://"):
+    _DATABASE_URL = _DATABASE_URL.replace("postgres://", "postgresql+asyncpg://", 1)
+
+_worker_engine = create_async_engine(_DATABASE_URL, poolclass=NullPool, future=True)
+async_session_maker = async_sessionmaker(
+    _worker_engine, class_=AsyncSession, expire_on_commit=False, autocommit=False, autoflush=False
+)
 
 local_analyzer_llm = ChatOpenAI(model="gpt-3.5-turbo", temperature=0.3)
 
@@ -44,7 +58,7 @@ class OpenAIRealtimeClient:
         self.on_agent_response: Optional[Callable[[str], None]] = None
         self.on_agent_transcript_delta: Optional[Callable[[str], None]] = None
 
-    async def connect(self, system_prompt: str):
+    async def connect(self, system_prompt: str, voice: str = "alloy"):
         if not self.api_key:
             print("[OpenAI] ❌ 錯誤：找不到 API Key，請檢查 .env 檔案中的 OPENAI_API_KEY")
             return
@@ -68,7 +82,7 @@ class OpenAIRealtimeClient:
                 "type": "session.update",
                 "session": {
                     "modalities": ["text", "audio"],
-                    "voice": "alloy",
+                    "voice": voice,
                     "instructions": system_prompt,
                     "tools": TOOLS_SCHEMA,
                     "tool_choice": "auto",
@@ -206,17 +220,9 @@ class StudentVoicePipeline:
         self.scenario_description: str = ""
         self.personality_type: str = ""
         self.domain_weights: dict = {}
+        self.personality_voice: str = "alloy"
 
-    async def _resolve_session_id(self) -> Optional[int]:
-        room_name = self.room.name
-        async with async_session_maker() as db:
-            result = await db.execute(
-                select(Session).where(Session.livekit_room_name == room_name)
-            )
-            session = result.scalar_one_or_none()
-            return session.id if session else None
-
-    async def _load_dynamic_prompt(self) -> str:
+    async def _load_dynamic_prompt(self) -> Optional[str]:
         room_name = self.room.name
         print(f"[Pipeline] Loading prompt for room: {room_name!r}")
 
@@ -253,6 +259,7 @@ class StudentVoicePipeline:
                         self.scenario_description = scenario.description or scenario.title
                         self.personality_type = personality.personality_type or ""
                         self.domain_weights = personality.domain_weights or {}
+                        self.personality_voice = personality.voice or "alloy"
                         self.last_emotion_scores = scenario.initial_emotions or {
                             "HAPPY": 0.10, "SAD": 0.20, "ANGRY": 0.05, "SURPRISED": 0.05,
                             "ANXIOUS": 0.30, "FRUSTRATED": 0.15, "CONFIDENT": 0.10,
@@ -264,6 +271,14 @@ class StudentVoicePipeline:
                             if grade_id:
                                 r = await db.execute(select(GradeLevel).where(GradeLevel.id == grade_id))
                                 grade = r.scalar_one_or_none()
+
+                        grade_label = f"{grade.label}（{grade.desc}）" if grade else "未指定年級"
+                        print(
+                            f"[Pipeline] ✅ Session 載入成功\n"
+                            f"           學生：{personality.name}（{personality.personality_type or '未知個性'}）\n"
+                            f"           年級：{grade_label}\n"
+                            f"           場景：{scenario.title}"
+                        )
                         return build_student_prompt(scenario, personality, grade=grade)
 
                     break
@@ -272,7 +287,8 @@ class StudentVoicePipeline:
                 print(f"[Pipeline] DB error: {e}")
                 break
 
-        return "請務必使用繁體中文（台灣用語）。你是一位國中一年級的學生，與老師進行 SEL 對話練習。"
+        print(f"[Pipeline] ❌ 無法載入 Session 設定（room: {room_name!r}），中止任務。")
+        return None
 
     async def start(self):
         # 1. 先連接 LiveKit 房間
@@ -282,9 +298,22 @@ class StudentVoicePipeline:
 
         # 2. 載入 Prompt 並連接 OpenAI
         system_prompt = await self._load_dynamic_prompt()
-        
+
+        if system_prompt is None:
+            try:
+                error_payload = json.dumps({
+                    "type": "pipeline_error",
+                    "code": "session_load_failed",
+                    "message": "無法載入對話設定，請返回重新選擇",
+                }).encode("utf-8")
+                await self.room.local_participant.publish_data(error_payload, reliable=True)
+                await asyncio.sleep(0.5)  # 給 LiveKit 時間傳遞訊息
+            except Exception as e:
+                print(f"[Pipeline] ⚠️ 無法傳送錯誤訊號: {e}")
+            return
+
         try:
-            await self.client.connect(system_prompt)
+            await self.client.connect(system_prompt, voice=self.personality_voice)
         except Exception:
             print("[Pipeline] ❌ 關鍵錯誤：無法初始化 OpenAI 連線，中斷任務。")
             return
@@ -323,16 +352,29 @@ class StudentVoicePipeline:
                     if publication.track:
                         asyncio.create_task(self.handle_track_audio(publication.track))
 
-        shutdown_future = asyncio.Future()
-        self.ctx.add_shutdown_callback(lambda reason: shutdown_future.set_result(reason) if not shutdown_future.done() else None)
-        
+        shutdown_future: asyncio.Future = asyncio.Future()
+
+        @self.room.on("participant_disconnected")
+        def on_participant_disconnected(_participant):
+            async def _delayed_shutdown():
+                await asyncio.sleep(5)
+                if not self.room.remote_participants and not shutdown_future.done():
+                    print("[Pipeline] 參與者已離開超過 5 秒，觸發關閉。")
+                    shutdown_future.set_result("participant_disconnected")
+            asyncio.create_task(_delayed_shutdown())
+
+        async def _on_shutdown(reason: str = ""):
+            if not shutdown_future.done():
+                shutdown_future.set_result(reason or "framework_shutdown")
+
+        self.ctx.add_shutdown_callback(_on_shutdown)
+
         await shutdown_future
 
         audio_task.cancel()
         if self.client.ws:
             await self.client.ws.close()
 
-    # ... (其餘 handle_xxx 函式保持不變)
     async def handle_audio_delta(self, pcm_data: bytes):
         samples_count = len(pcm_data) // 2
         frame = rtc.AudioFrame(data=pcm_data, sample_rate=SAMPLE_RATE, num_channels=CHANNELS, samples_per_channel=samples_count)
@@ -396,7 +438,8 @@ class StudentVoicePipeline:
                     db.add(EmotionLog(session_id=self.db_session_id, turn_number=self.turn_count, teacher_input=teacher_input, 
                                       timestamp=datetime.utcnow(), **{k.lower(): v for k, v in emotion_scores.items()}))
                     await db.commit()
-        except: pass
+        except Exception as e:
+            print(f"[Pipeline] ⚠️ 情緒 log 寫入失敗（turn {self.turn_count}）: {e}")
         return emotion_json_str
 
 # =============================================================================

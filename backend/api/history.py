@@ -33,6 +33,9 @@ class HistoryItem(BaseModel):
     scenario_title: Optional[str]
     rounds: int
     duration: Optional[int]  # seconds
+    scenario_id: Optional[int]
+    personality_key: Optional[str]
+    grade_id: Optional[str]
 
 
 def _calc_duration(started_at, ended_at) -> Optional[int]:
@@ -61,9 +64,22 @@ async def get_history(
             scenario = await db_manager.get_scenario_by_id(s.scenario_id)
             scenario_title = scenario.title if scenario else None
 
+        report = await db_manager.get_feedback_report_by_session(s.id)
+        if not report:
+            continue  # 只顯示有報告的 session
+
         transcripts = await db_manager.get_session_transcripts(s.id)
         rounds = len(transcripts)
         duration = _calc_duration(s.started_at, s.ended_at)
+
+        personality_key = None
+        if s.personality_id:
+            personality = await db_manager.get_personality_by_id(s.personality_id)
+            personality_key = personality.personality_tags if personality else None
+
+        grade_id = None
+        if s.session_metadata:
+            grade_id = s.session_metadata.get("grade_id")
 
         result.append(HistoryItem(
             session_uuid=s.session_uuid,
@@ -73,6 +89,9 @@ async def get_history(
             scenario_title=scenario_title,
             rounds=rounds,
             duration=duration,
+            scenario_id=s.scenario_id,
+            personality_key=personality_key,
+            grade_id=grade_id,
         ))
 
     return result

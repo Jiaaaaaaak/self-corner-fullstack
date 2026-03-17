@@ -1,3 +1,4 @@
+import { useRef, useEffect } from "react";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Textarea } from "@/components/ui/textarea";
@@ -37,6 +38,13 @@ export default function FeedbackTabs({
   onSendCoach,
   isSending,
 }: FeedbackTabsProps) {
+  const chatContainerRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const el = chatContainerRef.current;
+    if (el) el.scrollTop = el.scrollHeight;
+  }, [chatHistory, isSending]);
+
   return (
     <Tabs defaultValue="expert" className="flex flex-col flex-1 min-h-0">
       <div className="px-0 pt-0 pb-0 border-b border-[#E5E2D9] bg-[#FAF9F6]/30 shrink-0">
@@ -103,7 +111,7 @@ export default function FeedbackTabs({
             <h2 className="font-heading text-lg font-bold text-white tracking-wide">與 AI 教練對話</h2>
           </div>
 
-          <div className="max-h-[240px] overflow-y-auto relative z-10">
+          <div ref={chatContainerRef} className="max-h-[240px] overflow-y-auto relative z-10">
             <div className="flex flex-col gap-4">
               {chatHistory.map((msg, i) => (
                 <div key={i} className={`flex ${msg.role === "user" ? "justify-end" : "justify-start"}`}>
