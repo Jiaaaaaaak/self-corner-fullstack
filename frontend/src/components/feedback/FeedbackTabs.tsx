@@ -38,10 +38,11 @@ export default function FeedbackTabs({
   onSendCoach,
   isSending,
 }: FeedbackTabsProps) {
-  const chatBottomRef = useRef<HTMLDivElement>(null);
+  const chatContainerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    chatBottomRef.current?.scrollIntoView({ behavior: "smooth" });
+    const el = chatContainerRef.current;
+    if (el) el.scrollTop = el.scrollHeight;
   }, [chatHistory, isSending]);
 
   return (
@@ -110,7 +111,7 @@ export default function FeedbackTabs({
             <h2 className="font-heading text-lg font-bold text-white tracking-wide">與 AI 教練對話</h2>
           </div>
 
-          <div className="max-h-[240px] overflow-y-auto relative z-10">
+          <div ref={chatContainerRef} className="max-h-[240px] overflow-y-auto relative z-10">
             <div className="flex flex-col gap-4">
               {chatHistory.map((msg, i) => (
                 <div key={i} className={`flex ${msg.role === "user" ? "justify-end" : "justify-start"}`}>
@@ -133,7 +134,6 @@ export default function FeedbackTabs({
                   </div>
                 </div>
               )}
-              <div ref={chatBottomRef} />
             </div>
           </div>
 
