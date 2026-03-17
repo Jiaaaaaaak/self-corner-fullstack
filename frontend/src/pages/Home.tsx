@@ -76,12 +76,12 @@ export default function Home() {
 
               <div className="flex flex-wrap gap-x-16 gap-y-6 pt-4">
                 <div className="flex flex-col gap-2">
-                  <span className="font-heading text-4xl font-bold text-primary">500+</span>
-                  <span className="font-heading text-xs font-bold tracking-[0.15em] text-[#706C61] uppercase">練習情境</span>
+                  <span className="font-heading text-4xl font-bold text-primary">10+</span>
+                  <span className="font-heading text-xs font-bold tracking-[0.15em] text-[#706C61] uppercase">虛擬學生夥伴</span>
                 </div>
                 <div className="flex flex-col gap-2">
-                  <span className="font-heading text-4xl font-bold text-secondary">2,400+</span>
-                  <span className="font-heading text-xs font-bold tracking-[0.15em] text-[#706C61] uppercase">教師使用者</span>
+                  <span className="font-heading text-4xl font-bold text-secondary">180+</span>
+                  <span className="font-heading text-xs font-bold tracking-[0.15em] text-[#706C61] uppercase">練習情境</span>
                 </div>
                 <div className="flex flex-col gap-2">
                   <span className="font-heading text-4xl font-bold text-accent">96%</span>

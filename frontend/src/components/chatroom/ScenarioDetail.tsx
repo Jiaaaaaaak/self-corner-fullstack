@@ -45,7 +45,7 @@ export default function ScenarioDetail({ scenario, onClose, onStart }: ScenarioD
 
         <div className="flex justify-center mt-8">
           <Button size="lg" onClick={() => onStart(scenario)}>
-            開始對話
+            選擇對話夥伴
           </Button>
         </div>
       </div>
