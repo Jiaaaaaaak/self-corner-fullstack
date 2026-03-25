@@ -142,6 +142,70 @@ Email 驗證與忘記密碼功能需要 SMTP 寄信能力。本專案使用 Gmai
 4. 記下產生的 16 字元密碼，填入 `backend/.env` 的 `SMTP_PASSWORD`
 5. `SMTP_USER` 填入該 Gmail 帳號（例如 `selfcorner.team@gmail.com`）
 
+### 2.9 Google OAuth 憑證申請（Google 登入功能）
+
+Google 登入功能需要在 Google Cloud Console 申請 OAuth 2.0 憑證，取得 `GOOGLE_CLIENT_ID` 與 `GOOGLE_CLIENT_SECRET`。
+
+#### 步驟一：建立 Google Cloud 專案
+
+1. 前往 [Google Cloud Console](https://console.cloud.google.com/)，用 Google 帳號登入
+2. 左上角點擊「選取專案」→「新增專案」
+3. 專案名稱輸入 `SELf-Corner`（或任意名稱），點擊「建立」
+4. 等待建立完成後，確認已切換至該專案
+
+#### 步驟二：設定 OAuth 同意畫面
+
+1. 左側選單「API 和服務」→「OAuth 同意畫面」
+2. User Type 選擇**外部**（External），點擊「建立」
+3. 填寫以下欄位：
+   - 應用程式名稱：`SELf-Corner`
+   - 使用者支援電子郵件：選擇你的 Gmail
+   - 開發人員聯絡資訊：填入你的 email
+4. 點擊「儲存並繼續」
+5. 範圍（Scopes）頁面，點擊「新增或移除範圍」，勾選：
+   - `email`
+   - `profile`
+   - `openid`
+6. 點擊「更新」→「儲存並繼續」
+7. 測試使用者頁面，點擊「Add Users」，加入所有需要測試 Google 登入的 Gmail 帳號
+8. 點擊「儲存並繼續」→「返回資訊主頁」
+
+> ⚠️ 同意畫面處於「測試中」狀態時，**只有被加入的測試使用者能完成 Google 登入**，其他人會看到錯誤畫面。最多可加 100 個測試使用者，開發階段完全夠用。
+
+#### 步驟三：建立 OAuth 2.0 憑證
+
+1. 左側選單「API 和服務」→「憑證」
+2. 點擊上方「建立憑證」→「OAuth 用戶端 ID」
+3. 應用程式類型選擇**網頁應用程式**
+4. 名稱可填 `SELf-Corner Web`（任意）
+5. **已授權的 JavaScript 來源**，點擊「新增 URI」，加入：
+   - `http://localhost:5173`
+   - `http://localhost:8080`
+6. **已授權的重新導向 URI**，點擊「新增 URI」，加入：
+   - `http://localhost:8000/auth/google/callback`
+7. 點擊「建立」
+
+建立完成後會顯示兩個值：
+
+| 欄位 | 範例 | 填入 `.env` 的位置 |
+|------|------|-------------------|
+| 用戶端 ID | `123456789-xxxxx.apps.googleusercontent.com` | `GOOGLE_CLIENT_ID` |
+| 用戶端密碼 | `GOCSPX-xxxxxxxxxxxxxxxxxx` | `GOOGLE_CLIENT_SECRET` |
+
+#### 步驟四：填入環境變數
+
+將取得的值填入 `backend/.env`：
+
+```
+GOOGLE_CLIENT_ID=123456789-xxxxx.apps.googleusercontent.com
+GOOGLE_CLIENT_SECRET=GOCSPX-xxxxxxxxxxxxxxxxxx
+GOOGLE_REDIRECT_URI=http://localhost:8000/auth/google/callback
+```
+
+> **重要**：`GOOGLE_REDIRECT_URI` 必須與步驟三第 6 點填入的「已授權的重新導向 URI」**完全一致**，包含 protocol（http/https）和 port。
+
+> **若不使用 Google 登入**：可以不設定這三個值，Google 登入按鈕點擊後會失敗但不影響其他功能。
+
 ---
 
 ## 3. 啟動服務
