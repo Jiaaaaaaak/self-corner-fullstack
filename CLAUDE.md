@@ -50,8 +50,10 @@ npm run test:watch # Vitest 監聽模式
 ### 關鍵資料流：一次完整練習
 
 ```
-[前端] POST /session/create (scenario_id)
-    → 後端隨機選 student_personality，建 Session 存 DB，回傳 session_uuid
+[前端] POST /session/create (scenario_id, personality_key?, grade_id?)
+    → 若有 personality_key 則按 personality_tags 欄位查找對應個性，找不到則 fallback 隨機
+    → 若有 grade_id 則存入 session_metadata JSONB（非獨立欄位）
+    → 建 Session 存 DB，回傳 session_uuid + student_name + initial_emotion
 [前端] POST /livekit/token (session_uuid)
     → 後端生成 LiveKit Token，前端連入房間
 [LiveKit] 觸發 Agent Worker job
@@ -63,6 +65,7 @@ npm run test:watch # Vitest 監聽模式
         → gpt-3.5-turbo 分析 → 漸進更新情緒（±0.20/輪）→ 存 EmotionLog → 更新 last_emotion_scores
     → 逐字稿（teacher/student）即時寫入 transcripts 表
     → 回應音訊透過 LiveKit 播放給老師
+    → 每輪回應後前端輪詢 GET /session/{uuid}/emotion/latest → 取 dominant 情緒 → 切換立繪
 [前端] POST /session/{uuid}/end
     → 後端取全部逐字稿 → 呼叫 gpt-4o coach LLM → 儲存 FeedbackReport
 [前端] GET /report/{uuid}/feedback → 顯示 SEL 雷達圖、回饋、逐字稿
@@ -187,6 +190,8 @@ npm run test:watch # Vitest 監聽模式
   - 方法：`setUser(user)`、`logout()`（注意：Sidebar.tsx 須使用 `logout` 而非 `clearUser`）
 - `sessionUuid` 在 Chatroom 建立 Session 時寫入，Feedback 頁面讀取用來呼叫 `/report/{uuid}/feedback`
 - History 頁面點擊紀錄時會覆寫 `sessionUuid`，再導向 Feedback 頁
+- **Chatroom.tsx 本地 State**：`studentProfile`（所選個性+年級）、`studentName`（角色名）、`studentEmotion` / `displayedEmotion`（含 cross-fade 過渡動畫）、`currentSessionUuid`（同時同步至 Ref 供 unmount cleanup 使用）
+- `Chatroom.tsx` 頁面 mount 時並行呼叫 `GET /scenarios`、`GET /personalities`、`GET /grade-levels`；unmount 時若 session 仍 active 且非正常結束，自動呼叫 `POST /session/{uuid}/abandon`
 
 ### 前端路由保護
 
@@ -198,8 +203,9 @@ npm run test:watch # Vitest 監聽模式
 
 ## 資料庫模型重點
 
-`models.py` 定義 9 張表，關鍵關聯：
+`models.py` 定義 11 張表（新增 `GradeLevel`、`Conversation`），關鍵關聯：
 - `Session` → FK 到 `scenarios`（情境）和 `student_personalities`（個性）
+- `Session.session_metadata`（JSONB）：存放 `grade_id` 等附加屬性（非固定欄位）
 - `FeedbackReport` 與 `Session` 是 1:1 關係（`uselist=False`），在 `POST /session/{uuid}/end` 同步生成
 - `EmotionLog` 每輪逐字稿一筆，記錄 9 種情緒分數（0.0–1.0）
 - `EmailVerificationToken` / `PasswordResetToken` → FK 到 `users`（`ondelete="CASCADE"`），各自有 `expires_at` 控制有效期
@@ -210,6 +216,26 @@ npm run test:watch # Vitest 監聽模式
 - `auth_provider`："local" | "google" | "both"
 - `is_email_verified`（Boolean, default False）：未驗證的使用者登入時會被 403 擋住；Google OAuth 使用者在 callback 時自動設為 True
 - `is_active`（Boolean, default True）：停用帳號用
+
+`User` 表的個人資料欄位（v1.6.0 新增）：
+- `school`（VARCHAR 200, nullable）：任職學校
+- `experience_years`（VARCHAR 50, nullable）：教學年資（存為字串，如 "3-5年"）
+
+`StudentPersonality` 表的新欄位（v1.6.0 擴充）：
+- `personality_tags`（VARCHAR 100, nullable）：個性標籤，如 "防衛刺蝟型"；`GET /personalities` API 和 `SessionCreateRequest.personality_key` 皆以此值對應
+- `short_desc`（TEXT, nullable）：前端選擇畫面顯示的短描述
+- `voice`（VARCHAR 20, default "alloy"）：OpenAI Realtime API 語音名稱
+
+`Scenario` 表的新欄位（v1.6.0 擴充）：
+- `short_desc`（VARCHAR 200, nullable）：前端情境卡片顯示的短說明
+- `tags`（JSONB, nullable）：適合本情境的個性標籤清單（如 `["防衛刺蝟型", "高壓衝動型"]`）
+
+`GradeLevel` 表（v1.6.0 新增）：
+- `id`（VARCHAR 30, PK）：如 "lower-elementary"
+- `label`：中文標籤（低年級/中年級/高年級/國中生）
+- `desc`：年級範圍（小一～小二 等）
+- `behavior_desc`：行為特徵說明（供 voice_pipeline.py 注入 Prompt）
+- `sort_order`：排序用
 
 `Scenario` 表的重要欄位：
 - `description`：給使用者看的情境說明（UI 顯示）
@@ -411,6 +437,55 @@ VITE_LIVEKIT_URL=wss://your-project.livekit.cloud
 - `frontend/src/pages/Login.tsx`：註冊成功後 Dialog 切換為等待驗證畫面（信封圖示 + 15 秒後重寄按鈕）；監聽 window focus 事件自動嘗試登入；「沒收到驗證信？」連結
 - `frontend/src/App.tsx`：新增 `/verify-email`、`/reset-password` 路由（不受 ProtectedRoute 保護）
 - `frontend/src/lib/api.ts`：interceptor 排除 `/auth/me`
+
+### 個性/年級選擇 + 立繪情緒系統（v1.6.0）
+
+**後端新增**
+- `backend/api/personality.py`：`GET /personalities`，回傳 id、name、personality_tags、personality_type、short_desc
+- `backend/api/grade.py`：`GET /grade-levels`，回傳 id、label、desc、behavior_desc、sort_order
+- `backend/api/auth.py`：`PUT /auth/me`，可更新 first_name、last_name、school、experience_years
+- `backend/api/session.py`：
+  - `POST /session/create` 新增選填欄位：`personality_key`（按 personality_tags 查找，找不到 fallback 隨機）、`grade_id`（存入 session_metadata）
+  - `SessionResponse` 新增 `initial_emotion`（最高分情緒名稱）
+  - 新增 `POST /session/{uuid}/abandon`（快速結束，不觸發教練分析）
+  - 新增 `GET /session/{uuid}/emotion/latest`，回傳 `{"emotion": str, "turn_number": int, "scores": dict}`
+- `backend/models.py`：新增 `GradeLevel` 表；`StudentPersonality` 新增 `personality_tags`、`short_desc`、`voice`；`Scenario` 新增 `short_desc`、`tags`；`User` 新增 `school`、`experience_years`；`FeedbackReport` 新增 Critic Agent 欄位群
+- `backend/seed_data.py`：情境擴增至 16 個；學生個性擴充至 10 種；新增 `GRADE_LEVELS`（4 個年級）；新增 `TEST_USER`（可直接用 email `test@selfcorner.dev` 登入，`is_email_verified=True`）
+
+**教練分析流程升級（v1.6.0）**
+
+`POST /session/{uuid}/end` 的報告生成升級為三段式：
+```
+Coach LLM（初稿）→ Critic Agent（審核）→ 若未通過 → Coach LLM（修正稿）
+```
+- `CRITIC_PROMPT` / `COACH_REVISION_PROMPT` 新增至 `agents/prompts.py`
+- 初稿與最終版、Critic 輸出皆存入 `FeedbackReport` 各對應欄位（`draft_*`、`critic_passed`、`critic_critique`、`critic_revision_instructions`）
+- Critic Agent 失敗時 fallback 使用初稿（不中斷流程）
+
+**前端新增**
+- `frontend/src/components/chatroom/ScenarioCard.tsx`：情境卡片，含 SEL 能力群組分類、emoji、short_desc
+- `frontend/src/components/chatroom/ScenarioDetail.tsx`：情境詳情展開面板（含推薦個性標籤 tags）
+- `frontend/src/components/chatroom/StudentProfileSelect.tsx`：整合個性+年級選擇，props 含 `allowedPersonalityTags`（依 scenario.tags 過濾）
+- `frontend/src/components/chatroom/PersonalitySelection.tsx`、`AgeGroupSelection.tsx`、`RandomConfirm.tsx`
+- `frontend/src/components/chatroom/SkillTreeMap.tsx`：左側 SEL 五大能力樹，展示全部情境分組
+- `frontend/src/components/chatroom/SoulCards.tsx`：KIST 12 張對話卡抽卡體驗，Portal 全螢蓋板，含洗牌/翻牌/揭示動畫 + Web Audio SFX
+- `frontend/src/lib/collectionData.ts`：`CompetencyGroup`、`COMPETENCY_META`、`buildCompetencyGroups()`
+- `frontend/src/lib/studentCharacter.ts`：`getStudentImagePath(name, emotion)`、`getAvatarPath(name)`、`preloadCharacterImages(name)`
+- `frontend/src/lib/soulCardSfx.ts`：Web Audio API 合成 SFX，無外部音效檔（sfxDeal/sfxShuffle/sfxFlip/sfxReveal/sfxClick）
+- `frontend/src/hooks/use-mobile.tsx`、`use-toast.ts`
+- `frontend/src/assets/classroom-background.png`
+- `frontend/public/avatars/`：10 個角色頭像（品妍、宇傑、宇翔、家瑜、建宇、思妤、柏宇、柏翰、睿明、芷婷）
+- `frontend/public/img/students/`：10 角色 × 9 情緒 = 90 張全身立繪（`{角色名}_{情緒中文}.png`）
+- `frontend/public/img/logo/`：平台 Logo 資源
+- `frontend/src/pages/Info.tsx`：新增 school、experience_years 可編輯欄位；儲存呼叫 `PUT /auth/me`
+
+**重要陷阱（v1.6.0）**
+
+**`curious` 與 `thinking` 的鍵值對應鏈**：DB `EmotionLog.curious` 欄位 → `voice_pipeline.py` 的 `EMOTION_KEY_MAP["CURIOUS"] = "thinking"` → `GET /session/{uuid}/emotion/latest` 回傳 `"thinking"` → 前端 `studentCharacter.ts` 的 `EMOTION_TO_CHINESE["thinking"] = "好奇"` → 圖片路徑 `好奇.png`。注意：前端 `StudentEmotion` type 含 `"thinking"` 而非 `"curious"`。
+
+**`allowedPersonalityTags` 過濾**：`ScenarioDetail.tsx` 將 `scenario.tags` 傳入 `StudentProfileSelect`，用以過濾 personalities 只顯示適合的個性。若 `scenario.tags` 為空，則顯示全部 10 種。
+
+**`grade_id` 不在 Session 主表欄位**：透過 `session_metadata = {"grade_id": grade_id}` 存入 JSONB，不是獨立 column；`voice_pipeline.py` 需從 `session.session_metadata["grade_id"]` 取出後自行查 `grade_levels` 表取得 `behavior_desc`。
 
 ---
 
