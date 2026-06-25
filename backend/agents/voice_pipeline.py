@@ -39,7 +39,7 @@ async_session_maker = async_sessionmaker(
 
 local_analyzer_llm = ChatOpenAI(model="gpt-3.5-turbo", temperature=0.3)
 
-REALTIME_MODEL = "gpt-4o-realtime-preview-2024-12-17"
+REALTIME_MODEL = "gpt-realtime"
 SAMPLE_RATE = 24000
 CHANNELS = 1
 
@@ -63,9 +63,10 @@ class OpenAIRealtimeClient:
             print("[OpenAI] ❌ 錯誤：找不到 API Key，請檢查 .env 檔案中的 OPENAI_API_KEY")
             return
 
+        # GA Realtime API 不再需要（也不接受）beta shape；送出 beta header 會被
+        # 以 invalid_request_error.beta_api_shape_disabled 關閉連線。
         headers = {
             "Authorization": f"Bearer {self.api_key}",
-            "OpenAI-Beta": "realtime=v1",
         }
 
         try:
@@ -77,17 +78,26 @@ class OpenAIRealtimeClient:
             )
             print("[OpenAI] ✅ WebSocket 握手成功！連線已建立。")
 
-            # 初始 Session 更新
+            # 初始 Session 更新（GA Realtime API 格式：audio 設定改為 input/output 巢狀）
             await self.send_event({
                 "type": "session.update",
                 "session": {
-                    "modalities": ["text", "audio"],
-                    "voice": voice,
+                    "type": "realtime",
                     "instructions": system_prompt,
+                    "output_modalities": ["audio"],
+                    "audio": {
+                        "input": {
+                            "format": {"type": "audio/pcm", "rate": SAMPLE_RATE},
+                            "transcription": {"model": "whisper-1"},
+                            "turn_detection": {"type": "server_vad"},
+                        },
+                        "output": {
+                            "format": {"type": "audio/pcm", "rate": SAMPLE_RATE},
+                            "voice": voice,
+                        },
+                    },
                     "tools": TOOLS_SCHEMA,
                     "tool_choice": "auto",
-                    "turn_detection": {"type": "server_vad"},
-                    "input_audio_transcription": {"model": "whisper-1"},
                 },
             })
             print("[OpenAI] ✅ 初始 Session 指令已送出")
@@ -138,10 +148,10 @@ class OpenAIRealtimeClient:
                 data = json.loads(message)
                 event_type = data.get("type")
 
-                if event_type != "response.audio.delta":
+                if event_type != "response.output_audio.delta":
                     print(f"[OpenAI Event] {event_type}")
 
-                if event_type == "response.audio.delta":
+                if event_type == "response.output_audio.delta":
                     delta_b64 = data.get("delta")
                     if delta_b64 and self.on_audio_delta:
                         await self.on_audio_delta(base64.b64decode(delta_b64))
@@ -183,7 +193,7 @@ class OpenAIRealtimeClient:
                     })
                     await self.send_event({"type": "response.create"})
 
-                elif event_type == "response.audio_transcript.delta":
+                elif event_type == "response.output_audio_transcript.delta":
                     delta = data.get("delta", "")
                     if delta and self.on_agent_transcript_delta:
                         await self.on_agent_transcript_delta(delta)
@@ -191,7 +201,9 @@ class OpenAIRealtimeClient:
                 elif event_type == "response.output_item.done":
                     item = data.get("item", {})
                     for c in item.get("content", []):
-                        if c.get("type") == "audio" and "transcript" in c:
+                        # GA Realtime 的音訊輸出 content 型別為 "output_audio"（舊 beta 為 "audio"）。
+                        # 此事件是每一輪回應的定稿訊號，前端據此把串流泡泡收尾、另開新泡泡。
+                        if c.get("type") in ("audio", "output_audio") and "transcript" in c:
                             if self.on_agent_response:
                                 await self.on_agent_response(c["transcript"])
 
@@ -454,4 +466,13 @@ async def request_fnc(ctx: JobRequest):
     await ctx.accept()
 
 if __name__ == "__main__":
-    cli.run_app(WorkerOptions(entrypoint_fnc=entrypoint, request_fnc=request_fnc))
+    cli.run_app(
+        WorkerOptions(
+            entrypoint_fnc=entrypoint,
+            request_fnc=request_fnc,
+            # 專案位於 /mnt/c（Windows 掛載碟），WSL2 import 套件約需 45s，
+            # 遠超預設 10s 初始化逾時，導致 job 子程序無法生成。放寬逾時並預熱 idle 程序。
+            initialize_process_timeout=120.0,
+            num_idle_processes=1,
+        )
+    )

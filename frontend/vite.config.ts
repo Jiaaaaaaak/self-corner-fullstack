@@ -7,20 +7,20 @@ import { componentTagger } from "lovable-tagger";
 export default defineConfig(({ mode }) => ({
   server: {
     host: "::",
-    port: 8080,
+    port: 8081,
     allowedHosts: true, // 允許 ngrok / 任意外部 host 存取 Vite dev server
     hmr: {
       overlay: false,
     },
     proxy: {
-      "/auth": { target: "http://localhost:8000", changeOrigin: true },
-      "/scenarios": { target: "http://localhost:8000", changeOrigin: true },
-      "/personalities": { target: "http://localhost:8000", changeOrigin: true },
-      "/grade-levels": { target: "http://localhost:8000", changeOrigin: true },
-      "/history": { target: "http://localhost:8000", changeOrigin: true },
-      "/session": { target: "http://localhost:8000", changeOrigin: true },
-      "/livekit": { target: "http://localhost:8000", changeOrigin: true },
-      "/report": { target: "http://localhost:8000", changeOrigin: true },
+      "/auth": { target: "http://localhost:8001", changeOrigin: true },
+      "/scenarios": { target: "http://localhost:8001", changeOrigin: true },
+      "/personalities": { target: "http://localhost:8001", changeOrigin: true },
+      "/grade-levels": { target: "http://localhost:8001", changeOrigin: true },
+      "/history": { target: "http://localhost:8001", changeOrigin: true },
+      "/session": { target: "http://localhost:8001", changeOrigin: true },
+      "/livekit": { target: "http://localhost:8001", changeOrigin: true },
+      "/report": { target: "http://localhost:8001", changeOrigin: true },
     },
   },
   plugins: [react(), mode === "development" && componentTagger()].filter(Boolean),
