@@ -29,10 +29,11 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
-# CORS（開發環境允許前端開發伺服器；使用 ngrok 時透過 CORS_ORIGINS 動態擴充）
+# CORS（開發環境允許前端開發伺服器；正式環境讀 FRONTEND_URL 與 CORS_ORIGINS）
 _extra_origins = [
     o.strip() for o in os.getenv("CORS_ORIGINS", "").split(",") if o.strip()
 ]
+_frontend_url = os.getenv("FRONTEND_URL", "").strip()
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[
@@ -40,6 +41,9 @@ app.add_middleware(
         "http://127.0.0.1:5173",
         "http://localhost:8080",
         "http://127.0.0.1:8080",
+        "http://localhost:8081",
+        "http://127.0.0.1:8081",
+        *([_frontend_url] if _frontend_url else []),
         *_extra_origins,
     ],
     allow_credentials=True,
@@ -72,7 +76,8 @@ if __name__ == "__main__":
     import uvicorn
 
     host = os.getenv("API_HOST", "0.0.0.0")
-    port = int(os.getenv("API_PORT", "8000"))
+    # Render 與 Heroku 慣例使用 PORT；本地保留 API_PORT
+    port = int(os.getenv("PORT") or os.getenv("API_PORT", "8000"))
     reload = os.getenv("ENV", "development") == "development"
 
     print(f"""
