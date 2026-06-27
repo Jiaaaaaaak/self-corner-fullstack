@@ -470,11 +470,14 @@ class StudentVoicePipeline:
 # =============================================================================
 
 async def entrypoint(ctx: JobContext):
+    print(f"[Worker] entrypoint started, room={ctx.room.name if ctx.room else 'unknown'}", flush=True)
     pipeline = StudentVoicePipeline(ctx)
     await pipeline.start()
 
 async def request_fnc(ctx: JobRequest):
+    print(f"[Worker] received job request, room={ctx.room.name if ctx.room else 'unknown'}", flush=True)
     await ctx.accept()
+    print(f"[Worker] job accepted", flush=True)
 
 if __name__ == "__main__":
     # 預設保留 idle 子進程以加快首個 job；Render Starter (512MB)
