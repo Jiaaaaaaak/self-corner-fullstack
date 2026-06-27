@@ -333,6 +333,7 @@ class StudentVoicePipeline:
         system_prompt = await self._load_dynamic_prompt()
 
         if system_prompt is None:
+            print("[Pipeline] 🚨 EMITTING pipeline_error: session_load_failed", flush=True)
             try:
                 error_payload = json.dumps({
                     "type": "pipeline_error",
@@ -342,7 +343,7 @@ class StudentVoicePipeline:
                 await self.room.local_participant.publish_data(error_payload, reliable=True)
                 await asyncio.sleep(0.5)  # 給 LiveKit 時間傳遞訊息
             except Exception as e:
-                print(f"[Pipeline] ⚠️ 無法傳送錯誤訊號: {e}")
+                print(f"[Pipeline] ⚠️ 無法傳送錯誤訊號: {e}", flush=True)
             return
 
         try:
