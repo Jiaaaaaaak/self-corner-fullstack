@@ -477,13 +477,14 @@ async def request_fnc(ctx: JobRequest):
     await ctx.accept()
 
 if __name__ == "__main__":
+    # 預設保留 idle 子進程以加快首個 job；Render Starter (512MB)
+    # 記憶體吃緊，可用 WORKER_NUM_IDLE_PROCESSES=0 關閉預熱。
+    num_idle = int(os.getenv("WORKER_NUM_IDLE_PROCESSES", "0"))
     cli.run_app(
         WorkerOptions(
             entrypoint_fnc=entrypoint,
             request_fnc=request_fnc,
-            # 專案位於 /mnt/c（Windows 掛載碟），WSL2 import 套件約需 45s，
-            # 遠超預設 10s 初始化逾時，導致 job 子程序無法生成。放寬逾時並預熱 idle 程序。
             initialize_process_timeout=120.0,
-            num_idle_processes=1,
+            num_idle_processes=num_idle,
         )
     )
