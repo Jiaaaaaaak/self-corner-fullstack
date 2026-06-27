@@ -48,7 +48,17 @@ async_session_maker = async_sessionmaker(
     _worker_engine, class_=AsyncSession, expire_on_commit=False, autocommit=False, autoflush=False
 )
 
-local_analyzer_llm = ChatOpenAI(model="gpt-3.5-turbo", temperature=0.3)
+_local_analyzer_llm: Optional[ChatOpenAI] = None
+
+
+def get_local_analyzer_llm() -> ChatOpenAI:
+    """Lazy 載入 ChatOpenAI，避免父進程在 fork 子進程前就把 langchain 物件常駐
+    在記憶體（Render Starter 512MB 對 livekit-agents stack 來說很緊）。
+    """
+    global _local_analyzer_llm
+    if _local_analyzer_llm is None:
+        _local_analyzer_llm = ChatOpenAI(model="gpt-3.5-turbo", temperature=0.3)
+    return _local_analyzer_llm
 
 REALTIME_MODEL = "gpt-realtime"
 SAMPLE_RATE = 24000
@@ -451,7 +461,7 @@ class StudentVoicePipeline:
             self.personality_type,
             self.domain_weights,
         )
-        response = await local_analyzer_llm.ainvoke(prompt)
+        response = await get_local_analyzer_llm().ainvoke(prompt)
         emotion_json_str = response.content
         try:
             emotion_scores = json.loads(emotion_json_str)
