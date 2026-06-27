@@ -4,6 +4,14 @@
   "installCommand": "echo skip-root-install",
   "framework": null,
   "rewrites": [
+    { "source": "/auth(.*)",          "destination": "https://selfcorner-api.onrender.com/auth$1" },
+    { "source": "/scenarios(.*)",     "destination": "https://selfcorner-api.onrender.com/scenarios$1" },
+    { "source": "/personalities(.*)", "destination": "https://selfcorner-api.onrender.com/personalities$1" },
+    { "source": "/grade-levels(.*)",  "destination": "https://selfcorner-api.onrender.com/grade-levels$1" },
+    { "source": "/history(.*)",       "destination": "https://selfcorner-api.onrender.com/history$1" },
+    { "source": "/session(.*)",       "destination": "https://selfcorner-api.onrender.com/session$1" },
+    { "source": "/livekit(.*)",       "destination": "https://selfcorner-api.onrender.com/livekit$1" },
+    { "source": "/report(.*)",        "destination": "https://selfcorner-api.onrender.com/report$1" },
     {
       "source": "/((?!auth|scenarios|personalities|grade-levels|history|session|livekit|report).*)",
       "destination": "/index.html"
