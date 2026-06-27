@@ -31,8 +31,19 @@ _DATABASE_URL = os.getenv(
 )
 if _DATABASE_URL.startswith("postgres://"):
     _DATABASE_URL = _DATABASE_URL.replace("postgres://", "postgresql+asyncpg://", 1)
+elif _DATABASE_URL.startswith("postgresql://") and "+asyncpg" not in _DATABASE_URL:
+    _DATABASE_URL = _DATABASE_URL.replace("postgresql://", "postgresql+asyncpg://", 1)
 
-_worker_engine = create_async_engine(_DATABASE_URL, poolclass=NullPool, future=True)
+# Supabase Transaction-mode pooler 不允許 prepared statement cache
+_is_pooler = "pooler.supabase.com" in _DATABASE_URL or ":6543" in _DATABASE_URL
+_connect_args = {"statement_cache_size": 0} if _is_pooler else {}
+
+_worker_engine = create_async_engine(
+    _DATABASE_URL,
+    poolclass=NullPool,
+    future=True,
+    connect_args=_connect_args,
+)
 async_session_maker = async_sessionmaker(
     _worker_engine, class_=AsyncSession, expire_on_commit=False, autocommit=False, autoflush=False
 )
