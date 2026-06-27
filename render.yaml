@@ -28,3 +28,30 @@ services:
         sync: false
       - key: FRONTEND_URL
         sync: false
+      - key: RESEND_API_KEY
+        sync: false
+      - key: RESEND_FROM_EMAIL
+        value: "SELf-Corner <onboarding@resend.dev>"
+
+  - type: worker
+    name: selfcorner-livekit-worker
+    runtime: python
+    rootDir: backend
+    plan: starter
+    buildCommand: pip install -r requirements.txt
+    startCommand: python -m agents.voice_pipeline start
+    envVars:
+      - key: PYTHON_VERSION
+        value: "3.11.9"
+      - key: ENV
+        value: production
+      - key: DATABASE_URL
+        sync: false
+      - key: OPENAI_API_KEY
+        sync: false
+      - key: LIVEKIT_URL
+        sync: false
+      - key: LIVEKIT_API_KEY
+        sync: false
+      - key: LIVEKIT_API_SECRET
+        sync: false

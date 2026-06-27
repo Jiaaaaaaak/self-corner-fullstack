@@ -1,36 +1,47 @@
 """
 Services Layer - Email Service
-SMTP 寄信服務（驗證信、密碼重設信）
+透過 Resend HTTPS API 寄信（驗證信、密碼重設信）
 """
 import os
-import aiosmtplib
-from email.mime.text import MIMEText
-from email.mime.multipart import MIMEMultipart
 
-SMTP_HOST = os.getenv("SMTP_HOST", "smtp.gmail.com")
-SMTP_PORT = int(os.getenv("SMTP_PORT", "587"))
-SMTP_USER = os.getenv("SMTP_USER", "")
-SMTP_PASSWORD = os.getenv("SMTP_PASSWORD", "")
-SMTP_FROM_NAME = os.getenv("SMTP_FROM_NAME", "SELf-Corner")
+import httpx
+
+RESEND_API_KEY = os.getenv("RESEND_API_KEY", "")
+RESEND_FROM_EMAIL = os.getenv(
+    "RESEND_FROM_EMAIL", "SELf-Corner <onboarding@resend.dev>"
+)
 FRONTEND_URL = os.getenv("FRONTEND_URL", "http://localhost:8080")
+
+RESEND_API_URL = "https://api.resend.com/emails"
 
 
 async def _send_email(to_email: str, subject: str, html_body: str):
-    """底層 SMTP 寄信函數"""
-    msg = MIMEMultipart("alternative")
-    msg["From"] = f"{SMTP_FROM_NAME} <{SMTP_USER}>"
-    msg["To"] = to_email
-    msg["Subject"] = subject
-    msg.attach(MIMEText(html_body, "html", "utf-8"))
+    if not RESEND_API_KEY:
+        print(
+            f"[Email] RESEND_API_KEY 未設定，略過寄信給 {to_email}（主旨：{subject}）"
+        )
+        return
 
-    await aiosmtplib.send(
-        msg,
-        hostname=SMTP_HOST,
-        port=SMTP_PORT,
-        start_tls=True,
-        username=SMTP_USER,
-        password=SMTP_PASSWORD,
-    )
+    async with httpx.AsyncClient(timeout=15.0) as client:
+        resp = await client.post(
+            RESEND_API_URL,
+            headers={
+                "Authorization": f"Bearer {RESEND_API_KEY}",
+                "Content-Type": "application/json",
+            },
+            json={
+                "from": RESEND_FROM_EMAIL,
+                "to": [to_email],
+                "subject": subject,
+                "html": html_body,
+            },
+        )
+        if resp.status_code >= 400:
+            # Resend 失敗時印出 body 方便排錯，但不中斷流程
+            print(
+                f"[Email] Resend API 回應 {resp.status_code}：{resp.text}"
+            )
+            resp.raise_for_status()
 
 
 async def send_verification_email(to_email: str, token: str):
