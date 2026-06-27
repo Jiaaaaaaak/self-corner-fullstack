@@ -479,6 +479,8 @@ async def request_fnc(ctx: JobRequest):
     await ctx.accept()
     print(f"[Worker] job accepted", flush=True)
 
+AGENT_NAME = os.getenv("LIVEKIT_AGENT_NAME", "selfcorner-student")
+
 if __name__ == "__main__":
     # 預設保留 idle 子進程以加快首個 job；Render Starter (512MB)
     # 記憶體吃緊，可用 WORKER_NUM_IDLE_PROCESSES=0 關閉預熱。
@@ -487,6 +489,9 @@ if __name__ == "__main__":
         WorkerOptions(
             entrypoint_fnc=entrypoint,
             request_fnc=request_fnc,
+            # livekit-agents 1.x：設 agent_name + API 端 explicit dispatch，
+            # 比依賴 anonymous worker auto-dispatch 可靠。
+            agent_name=AGENT_NAME,
             initialize_process_timeout=120.0,
             num_idle_processes=num_idle,
         )
