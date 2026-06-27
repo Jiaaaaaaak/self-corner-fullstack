@@ -333,12 +333,12 @@ class StudentVoicePipeline:
         system_prompt = await self._load_dynamic_prompt()
 
         if system_prompt is None:
-            print("[Pipeline] 🚨 EMITTING pipeline_error: session_load_failed", flush=True)
+            print("[Pipeline] 🚨 EMITTING pipeline_error: session_load_failed (from worker code)", flush=True)
             try:
                 error_payload = json.dumps({
                     "type": "pipeline_error",
                     "code": "session_load_failed",
-                    "message": "無法載入對話設定，請返回重新選擇",
+                    "message": "WORKER_CODE_PATH: 無法載入對話設定，請返回重新選擇",
                 }).encode("utf-8")
                 await self.room.local_participant.publish_data(error_payload, reliable=True)
                 await asyncio.sleep(0.5)  # 給 LiveKit 時間傳遞訊息
