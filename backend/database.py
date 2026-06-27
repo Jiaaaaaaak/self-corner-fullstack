@@ -22,12 +22,18 @@ elif DATABASE_URL.startswith("postgresql://") and "+asyncpg" not in DATABASE_URL
     DATABASE_URL = DATABASE_URL.replace("postgresql://", "postgresql+asyncpg://", 1)
 
 
+# Supabase Transaction-mode pooler（pgbouncer）會在每個 transaction 後重置
+# 連線，asyncpg 的 prepared statement cache 會 conflict，必須關閉。
+_is_pooler = "pooler.supabase.com" in DATABASE_URL or ":6543" in DATABASE_URL
+_connect_args = {"statement_cache_size": 0} if _is_pooler else {}
+
 engine = create_async_engine(
     DATABASE_URL,
     echo=os.getenv("ENV", "development") == "development",
     future=True,
     pool_pre_ping=True,
-    poolclass=NullPool if os.getenv("TESTING") else None,
+    poolclass=NullPool if (os.getenv("TESTING") or _is_pooler) else None,
+    connect_args=_connect_args,
 )
 
 async_session_maker = async_sessionmaker(
