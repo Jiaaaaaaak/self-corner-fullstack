@@ -222,7 +222,7 @@ export default function Login() {
         <div className="flex flex-col items-center gap-3">
           <img src="/img/logo/SELf_corner_Logo_transparent.png" alt="SELf-corner" className="w-40 h-40 object-contain" />
           <p className="text-[13px] text-[#706C61] italic text-center font-medium">
-            每個老師，都需要一個能安心犯錯的角落。
+            每個教師，都需要一個能安心犯錯的角落。
           </p>
         </div>
 
