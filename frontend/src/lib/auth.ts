@@ -13,8 +13,10 @@ interface User {
 interface AuthState {
     user: User | null;
     isLoggedIn: boolean;
+    isAuthLoading: boolean;
     sessionUuid: string | null;
     setUser: (user: User | null) => void;
+    setAuthLoading: (loading: boolean) => void;
     setSessionUuid: (uuid: string | null) => void;
     clearUser: () => void;
     logout: () => void;
@@ -23,8 +25,10 @@ interface AuthState {
 export const useAuthStore = create<AuthState>((set) => ({
     user: null,
     isLoggedIn: false,
+    isAuthLoading: true,
     sessionUuid: null,
     setUser: (user) => set({ user, isLoggedIn: !!user }),
+    setAuthLoading: (loading) => set({ isAuthLoading: loading }),
     setSessionUuid: (uuid) => set({ sessionUuid: uuid }),
     clearUser: () => set({ user: null, isLoggedIn: false, sessionUuid: null }),
     logout: () => set({ user: null, isLoggedIn: false, sessionUuid: null }),
