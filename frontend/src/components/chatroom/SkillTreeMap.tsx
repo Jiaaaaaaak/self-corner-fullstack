@@ -1,5 +1,5 @@
 import { useState, useMemo } from "react";
-import { Sparkles, LayoutGrid, List, Search, Clock, Users } from "lucide-react";
+import { Sparkles, LayoutGrid, List, Search, Clock, Users, Loader2 } from "lucide-react";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -9,6 +9,7 @@ interface SkillTreeMapProps {
   groups: CompetencyGroup[];
   onSelectScenario: (id: number) => void;
   onOpenSoulCards: () => void;
+  loading?: boolean;
 }
 
 const COMPETENCY_COLORS = [
@@ -21,7 +22,7 @@ const COMPETENCY_COLORS = [
 
 type ViewMode = "grid" | "list";
 
-export default function SkillTreeMap({ groups, onSelectScenario, onOpenSoulCards }: SkillTreeMapProps) {
+export default function SkillTreeMap({ groups, onSelectScenario, onOpenSoulCards, loading = false }: SkillTreeMapProps) {
   const [activeFilter, setActiveFilter] = useState<string | null>(null);
   const [viewMode, setViewMode] = useState<ViewMode>("grid");
   const [searchQuery, setSearchQuery] = useState("");
@@ -233,7 +234,14 @@ export default function SkillTreeMap({ groups, onSelectScenario, onOpenSoulCards
           </div>
         )}
 
-        {filteredScenarios.length === 0 && (
+        {loading && filteredScenarios.length === 0 && (
+          <div className="flex flex-col items-center justify-center py-16 text-muted-foreground gap-3">
+            <Loader2 className="w-8 h-8 animate-spin text-primary/70" />
+            <p className="text-sm font-medium">正在載入情境...</p>
+          </div>
+        )}
+
+        {!loading && filteredScenarios.length === 0 && (
           <div className="flex flex-col items-center justify-center py-16 text-muted-foreground gap-2">
             <Search className="w-8 h-8 opacity-40" />
             <p className="text-sm font-medium">找不到符合條件的情境</p>

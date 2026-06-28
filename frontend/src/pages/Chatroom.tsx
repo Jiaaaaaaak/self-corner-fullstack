@@ -31,6 +31,7 @@ export default function Chatroom() {
 
   const [allScenarios, setAllScenarios] = useState<Scenario[]>([]);
   const [competencyGroups, setCompetencyGroups] = useState<CompetencyGroup[]>([]);
+  const [isLoadingScenarios, setIsLoadingScenarios] = useState(true);
   const [allPersonalities, setAllPersonalities] = useState<any[]>([]);
   const [allGradeLevels, setAllGradeLevels] = useState<any[]>([]);
   const [isStarted, setIsStarted] = useState(false);
@@ -100,7 +101,7 @@ export default function Chatroom() {
       }));
       setAllScenarios(data);
       setCompetencyGroups(buildCompetencyGroups(data));
-    }).catch(() => {});
+    }).catch(() => {}).finally(() => setIsLoadingScenarios(false));
 
     api.get("/personalities").then((res) => {
       setAllPersonalities(res.data);
@@ -452,6 +453,7 @@ export default function Chatroom() {
               groups={competencyGroups}
               onSelectScenario={handleCardClick}
               onOpenSoulCards={() => setSoulCardsOpen(true)}
+              loading={isLoadingScenarios}
             />
           )}
 
