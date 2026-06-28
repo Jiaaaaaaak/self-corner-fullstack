@@ -37,7 +37,8 @@ services:
     name: selfcorner-livekit-worker
     runtime: python
     rootDir: backend
-    plan: starter
+    # 官方 livekit-plugins-openai（av/blingfire 等依賴）較吃記憶體，需 2GB。
+    plan: standard
     buildCommand: pip install -r requirements.txt
     startCommand: python -m agents.voice_pipeline start
     envVars:

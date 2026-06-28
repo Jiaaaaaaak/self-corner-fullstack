@@ -1,33 +1,62 @@
 """
-Agent Layer - Student Voice Pipeline
-整合 OpenAI Realtime API 與 LiveKit，提供即時語音互動。
-職責：學生語音回應 + 逐輪 semantic_analysis 情緒記錄。
+Agent Layer - Student Voice Pipeline（官方 livekit-plugins-openai 版本）
+
+以 AgentSession + openai.realtime.RealtimeModel + @function_tool 取代原本手刻的
+OpenAIRealtimeClient（保留於 voice_pipeline_legacy.py 作為 fallback）。
+
+保留與原版完全相同的四個客製點：
+  1. DB 動態載入 prompt（依 room 名稱查 Session/Scenario/Personality/Grade）
+  2. semantic_analysis 工具：每輪呼叫本地 LLM 算情緒、寫入 EmotionLog
+  3. 逐字稿即時透過 LiveKit data channel 推前端（沿用相同 JSON 格式）
+  4. teacher 文字輸入（data channel 收 teacher_text_input）觸發學生回應
+
+前端 data channel 合約（與 legacy 版一致，前端不需修改）：
+  送出：{type:"agent_transcript_delta", delta}  逐字串流
+        {type:"agent_response", text}           本輪定稿
+        {type:"user_transcription", text}        老師語音轉文字
+        {type:"pipeline_error", code, message}   載入失敗
+  接收：{type:"teacher_text_input", text}        老師打字
 """
 import asyncio
 import os
 import json
-import base64
-import websockets
-from typing import Optional, Callable
+from typing import AsyncIterable, Optional
 from datetime import datetime
 from dotenv import load_dotenv
 
 load_dotenv()  # 必須在所有 os.getenv() 之前呼叫，否則子進程讀不到 .env
 
 from livekit import rtc
-from livekit.agents import JobContext, JobRequest, WorkerOptions, cli
+from livekit.agents import (
+    Agent,
+    AgentSession,
+    JobContext,
+    JobRequest,
+    WorkerOptions,
+    RunContext,
+    cli,
+    function_tool,
+)
+from livekit.agents.voice.events import (
+    ConversationItemAddedEvent,
+    UserInputTranscribedEvent,
+)
+from livekit.plugins import openai
+from openai.types.realtime import AudioTranscription
 
-from agents.prompts import build_student_prompt, TOOLS_SCHEMA, build_semantic_analysis_prompt
+from agents.prompts import build_student_prompt, build_semantic_analysis_prompt
 from models import EmotionLog, Session, Scenario, StudentPersonality, Transcript, GradeLevel
 from langchain_openai import ChatOpenAI
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession, async_sessionmaker
 from sqlalchemy.pool import NullPool
 
-# Worker 子進程需獨立建立 NullPool 引擎，避免 event loop 跨進程綁定問題
+# =============================================================================
+# DB 引擎（Worker 子進程獨立建立 NullPool 引擎，避免 event loop 跨進程綁定）
+# =============================================================================
 _DATABASE_URL = os.getenv(
     "DATABASE_URL",
-    "postgresql+asyncpg://postgres:P%40ssw0rd@localhost:5432/self_corner"
+    "postgresql+asyncpg://postgres:P%40ssw0rd@localhost:5432/self_corner",
 )
 if _DATABASE_URL.startswith("postgres://"):
     _DATABASE_URL = _DATABASE_URL.replace("postgres://", "postgresql+asyncpg://", 1)
@@ -52,408 +81,78 @@ _local_analyzer_llm: Optional[ChatOpenAI] = None
 
 
 def get_local_analyzer_llm() -> ChatOpenAI:
-    """Lazy 載入 ChatOpenAI，避免父進程在 fork 子進程前就把 langchain 物件常駐
-    在記憶體（Render Starter 512MB 對 livekit-agents stack 來說很緊）。
-    """
+    """Lazy 載入 ChatOpenAI，避免父進程在 fork 子進程前就把 langchain 物件常駐記憶體。"""
     global _local_analyzer_llm
     if _local_analyzer_llm is None:
         _local_analyzer_llm = ChatOpenAI(model="gpt-3.5-turbo", temperature=0.3)
     return _local_analyzer_llm
 
+
 REALTIME_MODEL = "gpt-realtime"
-SAMPLE_RATE = 24000
-CHANNELS = 1
+
+_DEFAULT_EMOTIONS = {
+    "HAPPY": 0.10, "SAD": 0.20, "ANGRY": 0.05, "SURPRISED": 0.05,
+    "ANXIOUS": 0.30, "FRUSTRATED": 0.15, "CONFIDENT": 0.10,
+    "CURIOUS": 0.15, "NEUTRAL": 0.40,
+}
 
 
-class OpenAIRealtimeClient:
-    """管理與 OpenAI Realtime API 的 WebSocket 連線"""
+# =============================================================================
+# Student Agent
+# =============================================================================
+class StudentAgent(Agent):
+    """模擬學生的 Agent：持有本次 Session 的情境/個性狀態，並提供 semantic_analysis 工具。"""
 
-    def __init__(self, api_key: str, pipeline_instance):
-        self.url = f"wss://api.openai.com/v1/realtime?model={REALTIME_MODEL}"
-        self.api_key = api_key
-        self.pipeline = pipeline_instance
-        self.ws: Optional[websockets.WebSocketClientProtocol] = None
-
-        self.on_audio_delta: Optional[Callable[[bytes], None]] = None
-        self.on_user_transcription: Optional[Callable[[str], None]] = None
-        self.on_agent_response: Optional[Callable[[str], None]] = None
-        self.on_agent_transcript_delta: Optional[Callable[[str], None]] = None
-
-    async def connect(self, system_prompt: str, voice: str = "alloy"):
-        if not self.api_key:
-            print("[OpenAI] ❌ 錯誤：找不到 API Key，請檢查 .env 檔案中的 OPENAI_API_KEY")
-            return
-
-        # GA Realtime API 不再需要（也不接受）beta shape；送出 beta header 會被
-        # 以 invalid_request_error.beta_api_shape_disabled 關閉連線。
-        headers = {
-            "Authorization": f"Bearer {self.api_key}",
-        }
-
-        try:
-            print(f"[OpenAI] 正在嘗試連線至: {self.url}")
-            # 設定連線超時，避免無限等待
-            self.ws = await asyncio.wait_for(
-                websockets.connect(self.url, additional_headers=headers), 
-                timeout=10.0
-            )
-            print("[OpenAI] ✅ WebSocket 握手成功！連線已建立。")
-
-            # 初始 Session 更新（GA Realtime API 格式：audio 設定改為 input/output 巢狀）
-            await self.send_event({
-                "type": "session.update",
-                "session": {
-                    "type": "realtime",
-                    "instructions": system_prompt,
-                    "output_modalities": ["audio"],
-                    "audio": {
-                        "input": {
-                            "format": {"type": "audio/pcm", "rate": SAMPLE_RATE},
-                            "transcription": {"model": "whisper-1"},
-                            "turn_detection": {"type": "server_vad"},
-                        },
-                        "output": {
-                            "format": {"type": "audio/pcm", "rate": SAMPLE_RATE},
-                            "voice": voice,
-                        },
-                    },
-                    "tools": TOOLS_SCHEMA,
-                    "tool_choice": "auto",
-                },
-            })
-            print("[OpenAI] ✅ 初始 Session 指令已送出")
-
-        except websockets.exceptions.InvalidStatusCode as e:
-            print(f"[OpenAI] ❌ 連線被拒絕！HTTP 狀態碼: {e.status_code}")
-            if e.status_code == 401:
-                print("   👉 提示：API Key 可能無效。")
-            elif e.status_code == 403:
-                print("   👉 提示：您的 OpenAI 帳號可能沒有 Realtime API 的使用權限（通常需 Tier 5）。")
-            elif e.status_code == 429:
-                print("   👉 提示：額度不足或觸發頻率限制。")
-            self.ws = None
-            raise
-        except asyncio.TimeoutError:
-            print("[OpenAI] ❌ 連線超時，請檢查網路環境或代理伺服器設定。")
-            self.ws = None
-            raise
-        except Exception as e:
-            print(f"[OpenAI] ❌ 連線發生未預期錯誤: {type(e).__name__}: {e}")
-            self.ws = None
-            raise
-
-    async def send_event(self, event: dict):
-        if not self.ws:
-            print("[OpenAI] ⚠️ 警告：嘗試在未連線狀態下發送事件。")
-            return
-        
-        try:
-            await self.ws.send(json.dumps(event))
-        except Exception as e:
-            # 這裡就是抓取你之前噴出 error 的地方
-            state = getattr(self.ws, 'state', 'Unknown')
-            print(f"[OpenAI] ❌ 發送事件失敗！WS 狀態: {state}, 錯誤: {e}")
-            raise
-
-    async def send_audio_append(self, pcm_b64: str):
-        await self.send_event({
-            "type": "input_audio_buffer.append",
-            "audio": pcm_b64,
-        })
-
-    async def loop(self):
-        if not self.ws:
-            return
-        try:
-            async for message in self.ws:
-                data = json.loads(message)
-                event_type = data.get("type")
-
-                if event_type != "response.output_audio.delta":
-                    print(f"[OpenAI Event] {event_type}")
-
-                if event_type == "response.output_audio.delta":
-                    delta_b64 = data.get("delta")
-                    if delta_b64 and self.on_audio_delta:
-                        await self.on_audio_delta(base64.b64decode(delta_b64))
-
-                elif event_type == "conversation.item.input_audio_transcription.completed":
-                    transcript = data.get("transcript")
-                    print(f"[OpenAI] Transcription completed, transcript={repr(transcript)}")
-                    if transcript and self.on_user_transcription:
-                        await self.on_user_transcription(transcript)
-
-                elif event_type == "conversation.item.input_audio_transcription.failed":
-                    print(f"[OpenAI] ⚠️ 語音轉文字失敗: {data}")
-
-                elif event_type == "error":
-                    print(f"[OpenAI] ⚠️ 收到 API 錯誤事件: {data}")
-
-                elif event_type == "response.function_call_arguments.done":
-                    call_id = data.get("call_id")
-                    function_name = data.get("name")
-                    arguments = json.loads(data.get("arguments", "{}"))
-
-                    result = ""
-                    if function_name == "semantic_analysis":
-                        try:
-                            result = await self.pipeline.exec_semantic_analysis(
-                                arguments.get("teacher_input", "")
-                            )
-                        except Exception as sa_err:
-                            print(f"[OpenAI] ⚠️ semantic_analysis error: {sa_err}, using fallback emotions")
-                            result = json.dumps(self.pipeline.last_emotion_scores or {})
-
-                    await self.send_event({
-                        "type": "conversation.item.create",
-                        "item": {
-                            "type": "function_call_output",
-                            "call_id": call_id,
-                            "output": result,
-                        },
-                    })
-                    await self.send_event({"type": "response.create"})
-
-                elif event_type == "response.output_audio_transcript.delta":
-                    delta = data.get("delta", "")
-                    if delta and self.on_agent_transcript_delta:
-                        await self.on_agent_transcript_delta(delta)
-
-                elif event_type == "response.output_item.done":
-                    item = data.get("item", {})
-                    for c in item.get("content", []):
-                        # GA Realtime 的音訊輸出 content 型別為 "output_audio"（舊 beta 為 "audio"）。
-                        # 此事件是每一輪回應的定稿訊號，前端據此把串流泡泡收尾、另開新泡泡。
-                        if c.get("type") in ("audio", "output_audio") and "transcript" in c:
-                            if self.on_agent_response:
-                                await self.on_agent_response(c["transcript"])
-
-        except websockets.exceptions.ConnectionClosed as e:
-            print(f"[OpenAI] ℹ️ 連線已正常或非預期關閉: {e.code} {e.reason}")
-        except Exception as e:
-            print(f"[OpenAI] ❌ 迴圈發生錯誤: {e}")
-
-
-class StudentVoicePipeline:
-    """學生語音互動管線（LiveKit ↔ OpenAI Realtime API）"""
-
-    def __init__(self, ctx: JobContext):
-        self.ctx = ctx
-        self.room = ctx.room
-        self.api_key = os.getenv("OPENAI_API_KEY")
-        self.client = OpenAIRealtimeClient(self.api_key, self)
-
-        self.source = rtc.AudioSource(SAMPLE_RATE, CHANNELS)
-        self.track = rtc.LocalAudioTrack.create_audio_track("student_voice", self.source)
-
+    def __init__(
+        self,
+        *,
+        instructions: str,
+        room: rtc.Room,
+        db_session_id: Optional[int],
+        scenario_description: str,
+        personality_type: str,
+        domain_weights: dict,
+        initial_emotions: dict,
+    ):
+        super().__init__(instructions=instructions)
+        self._room = room
+        self.db_session_id = db_session_id
+        self.scenario_description = scenario_description
+        self.personality_type = personality_type
+        self.domain_weights = domain_weights or {}
+        self.last_emotion_scores = initial_emotions or dict(_DEFAULT_EMOTIONS)
         self.turn_count = 0
-        self.db_session_id: Optional[int] = None
-        self.last_emotion_scores: dict = {}
-        self.scenario_title: str = ""
-        self.scenario_description: str = ""
-        self.personality_type: str = ""
-        self.domain_weights: dict = {}
-        self.personality_voice: str = "alloy"
 
-    async def _load_dynamic_prompt(self) -> Optional[str]:
-        room_name = self.room.name
-        print(f"[Pipeline] Loading prompt for room: {room_name!r}")
-
-        for attempt in range(3):
-            try:
-                async with async_session_maker() as db:
-                    result = await db.execute(
-                        select(Session).where(Session.livekit_room_name == room_name)
-                    )
-                    session = result.scalar_one_or_none()
-
-                    if not session:
-                        if attempt < 2:
-                            print(f"[Pipeline] Session not found, retrying in 1s... (attempt {attempt+1})")
-                            await asyncio.sleep(1)
-                            continue
-                        print(f"[Pipeline] WARNING: Session not found for room: {room_name!r}")
-                        break
-
-                    self.db_session_id = session.id
-
-                    scenario = None
-                    if session.scenario_id:
-                        r = await db.execute(select(Scenario).where(Scenario.id == session.scenario_id))
-                        scenario = r.scalar_one_or_none()
-
-                    personality = None
-                    if session.personality_id:
-                        r = await db.execute(select(StudentPersonality).where(StudentPersonality.id == session.personality_id))
-                        personality = r.scalar_one_or_none()
-
-                    if scenario and personality:
-                        self.scenario_title = scenario.title
-                        self.scenario_description = scenario.description or scenario.title
-                        self.personality_type = personality.personality_type or ""
-                        self.domain_weights = personality.domain_weights or {}
-                        self.personality_voice = personality.voice or "alloy"
-                        self.last_emotion_scores = scenario.initial_emotions or {
-                            "HAPPY": 0.10, "SAD": 0.20, "ANGRY": 0.05, "SURPRISED": 0.05,
-                            "ANXIOUS": 0.30, "FRUSTRATED": 0.15, "CONFIDENT": 0.10,
-                            "CURIOUS": 0.15, "NEUTRAL": 0.40,
-                        }
-                        grade = None
-                        if session.session_metadata:
-                            grade_id = session.session_metadata.get("grade_id")
-                            if grade_id:
-                                r = await db.execute(select(GradeLevel).where(GradeLevel.id == grade_id))
-                                grade = r.scalar_one_or_none()
-
-                        grade_label = f"{grade.label}（{grade.desc}）" if grade else "未指定年級"
-                        print(
-                            f"[Pipeline] ✅ Session 載入成功\n"
-                            f"           學生：{personality.name}（{personality.personality_type or '未知個性'}）\n"
-                            f"           年級：{grade_label}\n"
-                            f"           場景：{scenario.title}"
-                        )
-                        return build_student_prompt(scenario, personality, grade=grade)
-
-                    break
-
-            except Exception as e:
-                print(f"[Pipeline] DB error: {e}")
-                break
-
-        print(f"[Pipeline] ❌ 無法載入 Session 設定（room: {room_name!r}），中止任務。")
-        return None
-
-    async def start(self):
-        # 1. 先連接 LiveKit 房間
-        await self.ctx.connect()
-        options = rtc.TrackPublishOptions(source=rtc.TrackSource.SOURCE_MICROPHONE)
-        await self.room.local_participant.publish_track(self.track, options)
-
-        # 2. 載入 Prompt 並連接 OpenAI
-        system_prompt = await self._load_dynamic_prompt()
-
-        if system_prompt is None:
-            print("[Pipeline] 🚨 EMITTING pipeline_error: session_load_failed (from worker code)", flush=True)
-            try:
-                error_payload = json.dumps({
-                    "type": "pipeline_error",
-                    "code": "session_load_failed",
-                    "message": "WORKER_CODE_PATH: 無法載入對話設定，請返回重新選擇",
-                }).encode("utf-8")
-                await self.room.local_participant.publish_data(error_payload, reliable=True)
-                await asyncio.sleep(0.5)  # 給 LiveKit 時間傳遞訊息
-            except Exception as e:
-                print(f"[Pipeline] ⚠️ 無法傳送錯誤訊號: {e}", flush=True)
-            return
-
+    async def publish(self, payload: dict):
+        """透過 LiveKit data channel 推訊息給前端（沿用 legacy JSON 格式）。"""
         try:
-            await self.client.connect(system_prompt, voice=self.personality_voice)
-        except Exception:
-            print("[Pipeline] ❌ 關鍵錯誤：無法初始化 OpenAI 連線，中斷任務。")
-            return
+            await self._room.local_participant.publish_data(
+                json.dumps(payload).encode("utf-8"), reliable=True
+            )
+        except Exception as e:
+            print(f"[Pipeline] ⚠️ publish_data 失敗: {e}", flush=True)
 
-        self.client.on_audio_delta = self.handle_audio_delta
-        self.client.on_agent_response = self.handle_agent_text_response
-        self.client.on_user_transcription = self.handle_user_transcription
-        self.client.on_agent_transcript_delta = self.handle_agent_transcript_delta
+    async def transcription_node(
+        self, text: AsyncIterable[str], model_settings
+    ) -> AsyncIterable[str]:
+        """覆寫框架的逐字稿節點：把學生每個文字 chunk 即時推到 data channel
+        （agent_transcript_delta），同時原樣 yield 回框架，不影響預設轉錄行為。"""
+        async def _tee():
+            async for chunk in text:
+                if chunk:
+                    await self.publish({"type": "agent_transcript_delta", "delta": str(chunk)})
+                yield chunk
 
-        # 3. 啟動非同步監聽迴圈
-        audio_task = asyncio.create_task(self.client.loop())
+        return _tee()
 
-        # 4. 註冊事件監聽
-        @self.room.on("track_subscribed")
-        def on_track_subscribed(track, publication, participant):
-            if track.kind == rtc.TrackKind.KIND_AUDIO:
-                asyncio.create_task(self.handle_track_audio(track))
+    @function_tool
+    async def semantic_analysis(self, context: RunContext, teacher_input: str) -> str:
+        """分析老師剛剛說的話對你（學生）造成的內心感受與情緒強度。
+        在你回應老師的任何一句話之前都必須先呼叫此工具。
 
-        @self.room.on("data_received")
-        def on_data_received(data_packet: rtc.DataPacket):
-            try:
-                message = json.loads(bytes(data_packet.data).decode("utf-8"))
-                if message.get("type") == "teacher_text_input":
-                    text = message.get("text", "").strip()
-                    if text:
-                        asyncio.create_task(self.handle_teacher_text_input(text))
-            except Exception:
-                pass
-
-        # 主動掃描音軌
-        for participant in self.room.remote_participants.values():
-            for publication in participant.track_publications.values():
-                if publication.kind == rtc.TrackKind.KIND_AUDIO:
-                    if not publication.subscribed:
-                        publication.set_subscribed(True)
-                    if publication.track:
-                        asyncio.create_task(self.handle_track_audio(publication.track))
-
-        shutdown_future: asyncio.Future = asyncio.Future()
-
-        @self.room.on("participant_disconnected")
-        def on_participant_disconnected(_participant):
-            async def _delayed_shutdown():
-                await asyncio.sleep(5)
-                if not self.room.remote_participants and not shutdown_future.done():
-                    print("[Pipeline] 參與者已離開超過 5 秒，觸發關閉。")
-                    shutdown_future.set_result("participant_disconnected")
-            asyncio.create_task(_delayed_shutdown())
-
-        async def _on_shutdown(reason: str = ""):
-            if not shutdown_future.done():
-                shutdown_future.set_result(reason or "framework_shutdown")
-
-        self.ctx.add_shutdown_callback(_on_shutdown)
-
-        await shutdown_future
-
-        audio_task.cancel()
-        if self.client.ws:
-            await self.client.ws.close()
-
-    async def handle_audio_delta(self, pcm_data: bytes):
-        samples_count = len(pcm_data) // 2
-        frame = rtc.AudioFrame(data=pcm_data, sample_rate=SAMPLE_RATE, num_channels=CHANNELS, samples_per_channel=samples_count)
-        await self.source.capture_frame(frame)
-
-    async def handle_agent_transcript_delta(self, delta: str):
-        payload = json.dumps({"type": "agent_transcript_delta", "delta": delta}).encode("utf-8")
-        await self.room.local_participant.publish_data(payload, reliable=True)
-
-    async def handle_agent_text_response(self, text: str):
-        if self.db_session_id:
-            async with async_session_maker() as db:
-                db.add(Transcript(session_id=self.db_session_id, speaker="student", text=text, source="realtime"))
-                await db.commit()
-        payload = json.dumps({"type": "agent_response", "text": text}).encode("utf-8")
-        await self.room.local_participant.publish_data(payload, reliable=True)
-
-    async def handle_user_transcription(self, text: str):
-        if self.db_session_id:
-            async with async_session_maker() as db:
-                db.add(Transcript(session_id=self.db_session_id, speaker="teacher", text=text, source="realtime"))
-                await db.commit()
-        payload = json.dumps({"type": "user_transcription", "text": text}).encode("utf-8")
-        await self.room.local_participant.publish_data(payload, reliable=True)
-
-    async def handle_teacher_text_input(self, text: str):
-        if self.db_session_id:
-            async with async_session_maker() as db:
-                db.add(Transcript(session_id=self.db_session_id, speaker="teacher", text=text, source="text"))
-                await db.commit()
-        await self.client.send_event({
-            "type": "conversation.item.create",
-            "item": {"type": "message", "role": "user", "content": [{"type": "input_text", "text": text}]},
-        })
-        await self.client.send_event({"type": "response.create"})
-
-    async def handle_track_audio(self, track: rtc.RemoteAudioTrack):
-        audio_stream = rtc.AudioStream(track, sample_rate=SAMPLE_RATE)
-        async for frame in audio_stream:
-            if not self.client.ws: break
-            pcm_b64 = base64.b64encode(frame.frame.data).decode("utf-8")
-            await self.client.send_audio_append(pcm_b64)
-
-    async def exec_semantic_analysis(self, teacher_input: str) -> str:
-        # (保持原有的情緒分析邏輯...)
+        Args:
+            teacher_input: 老師剛剛說的完整一句話。
+        """
         self.turn_count += 1
         prompt = build_semantic_analysis_prompt(
             teacher_input,
@@ -462,40 +161,223 @@ class StudentVoicePipeline:
             self.personality_type,
             self.domain_weights,
         )
-        response = await get_local_analyzer_llm().ainvoke(prompt)
-        emotion_json_str = response.content
         try:
+            response = await get_local_analyzer_llm().ainvoke(prompt)
+            emotion_json_str = response.content
             emotion_scores = json.loads(emotion_json_str)
             self.last_emotion_scores = emotion_scores
             if self.db_session_id:
                 async with async_session_maker() as db:
-                    db.add(EmotionLog(session_id=self.db_session_id, turn_number=self.turn_count, teacher_input=teacher_input, 
-                                      timestamp=datetime.utcnow(), **{k.lower(): v for k, v in emotion_scores.items()}))
+                    db.add(EmotionLog(
+                        session_id=self.db_session_id,
+                        turn_number=self.turn_count,
+                        teacher_input=teacher_input,
+                        timestamp=datetime.utcnow(),
+                        **{k.lower(): v for k, v in emotion_scores.items()},
+                    ))
                     await db.commit()
+            return emotion_json_str
         except Exception as e:
-            print(f"[Pipeline] ⚠️ 情緒 log 寫入失敗（turn {self.turn_count}）: {e}")
-        return emotion_json_str
+            print(f"[Pipeline] ⚠️ semantic_analysis error: {e}，使用上一輪情緒 fallback", flush=True)
+            return json.dumps(self.last_emotion_scores or {})
+
+
+# =============================================================================
+# DB Session 設定載入（沿用 legacy 的 retry 邏輯）
+# =============================================================================
+async def _load_session_config(room_name: str) -> Optional[dict]:
+    """依 room 名稱載入 Session/Scenario/Personality/Grade，組裝 prompt 與初始狀態。
+    回傳 dict；找不到或失敗回傳 None。"""
+    print(f"[Pipeline] Loading prompt for room: {room_name!r}", flush=True)
+
+    for attempt in range(3):
+        try:
+            async with async_session_maker() as db:
+                result = await db.execute(
+                    select(Session).where(Session.livekit_room_name == room_name)
+                )
+                session = result.scalar_one_or_none()
+
+                if not session:
+                    if attempt < 2:
+                        print(f"[Pipeline] Session not found, retrying in 1s... (attempt {attempt+1})", flush=True)
+                        await asyncio.sleep(1)
+                        continue
+                    print(f"[Pipeline] WARNING: Session not found for room: {room_name!r}", flush=True)
+                    return None
+
+                scenario = None
+                if session.scenario_id:
+                    r = await db.execute(select(Scenario).where(Scenario.id == session.scenario_id))
+                    scenario = r.scalar_one_or_none()
+
+                personality = None
+                if session.personality_id:
+                    r = await db.execute(select(StudentPersonality).where(StudentPersonality.id == session.personality_id))
+                    personality = r.scalar_one_or_none()
+
+                if not (scenario and personality):
+                    return None
+
+                grade = None
+                if session.session_metadata:
+                    grade_id = session.session_metadata.get("grade_id")
+                    if grade_id:
+                        r = await db.execute(select(GradeLevel).where(GradeLevel.id == grade_id))
+                        grade = r.scalar_one_or_none()
+
+                grade_label = f"{grade.label}（{grade.desc}）" if grade else "未指定年級"
+                print(
+                    f"[Pipeline] ✅ Session 載入成功\n"
+                    f"           學生：{personality.name}（{personality.personality_type or '未知個性'}）\n"
+                    f"           年級：{grade_label}\n"
+                    f"           場景：{scenario.title}",
+                    flush=True,
+                )
+
+                return {
+                    "system_prompt": build_student_prompt(scenario, personality, grade=grade),
+                    "db_session_id": session.id,
+                    "personality_voice": personality.voice or "alloy",
+                    "scenario_description": scenario.description or scenario.title,
+                    "personality_type": personality.personality_type or "",
+                    "domain_weights": personality.domain_weights or {},
+                    "initial_emotions": scenario.initial_emotions or dict(_DEFAULT_EMOTIONS),
+                }
+
+        except Exception as e:
+            print(f"[Pipeline] DB error: {e}", flush=True)
+            return None
+
+    return None
+
+
+# =============================================================================
+# DB 寫入 helper
+# =============================================================================
+async def _write_transcript(db_session_id: Optional[int], speaker: str, text: str, source: str):
+    if not db_session_id:
+        return
+    async with async_session_maker() as db:
+        db.add(Transcript(session_id=db_session_id, speaker=speaker, text=text, source=source))
+        await db.commit()
+
 
 # =============================================================================
 # LiveKit Worker Entry Points
 # =============================================================================
-
 async def entrypoint(ctx: JobContext):
     print(f"[Worker] entrypoint started, room={ctx.room.name if ctx.room else 'unknown'}", flush=True)
-    pipeline = StudentVoicePipeline(ctx)
-    await pipeline.start()
+    await ctx.connect()
+    room_name = ctx.room.name
+
+    config = await _load_session_config(room_name)
+    if config is None:
+        # 通知前端載入失敗（沿用 legacy 的 pipeline_error 格式）
+        try:
+            await ctx.room.local_participant.publish_data(
+                json.dumps({
+                    "type": "pipeline_error",
+                    "code": "session_load_failed",
+                    "message": "無法載入對話設定，請返回重新選擇",
+                }).encode("utf-8"),
+                reliable=True,
+            )
+            await asyncio.sleep(0.5)  # 給 LiveKit 時間傳遞訊息
+        except Exception as e:
+            print(f"[Pipeline] ⚠️ 無法傳送錯誤訊號: {e}", flush=True)
+        return
+
+    agent = StudentAgent(
+        instructions=config["system_prompt"],
+        room=ctx.room,
+        db_session_id=config["db_session_id"],
+        scenario_description=config["scenario_description"],
+        personality_type=config["personality_type"],
+        domain_weights=config["domain_weights"],
+        initial_emotions=config["initial_emotions"],
+    )
+
+    session = AgentSession(
+        llm=openai.realtime.RealtimeModel(
+            model=REALTIME_MODEL,
+            voice=config["personality_voice"],
+            input_audio_transcription=AudioTranscription(model="whisper-1"),
+        ),
+    )
+
+    # 老師語音轉文字（定稿）→ user_transcription + 落 DB
+    @session.on("user_input_transcribed")
+    def _on_user_transcribed(ev: UserInputTranscribedEvent):
+        if not ev.is_final or not ev.transcript.strip():
+            return
+
+        async def _handle():
+            await _write_transcript(agent.db_session_id, "teacher", ev.transcript, "realtime")
+            await agent.publish({"type": "user_transcription", "text": ev.transcript})
+
+        asyncio.create_task(_handle())
+
+    # 學生本輪定稿 → agent_response + 落 DB
+    @session.on("conversation_item_added")
+    def _on_item_added(ev: ConversationItemAddedEvent):
+        item = ev.item
+        if getattr(item, "role", None) != "assistant":
+            return
+        text = (item.text_content or "").strip()
+        if not text:
+            return
+
+        async def _handle():
+            await _write_transcript(agent.db_session_id, "student", text, "realtime")
+            await agent.publish({"type": "agent_response", "text": text})
+
+        asyncio.create_task(_handle())
+
+    await session.start(agent=agent, room=ctx.room)
+
+    # 老師文字輸入（data channel）→ 落 DB + 觸發學生回應
+    # 注意：前端送出時已在本地樂觀顯示老師訊息，故此處不再回送 user_transcription。
+    @ctx.room.on("data_received")
+    def _on_data_received(packet: rtc.DataPacket):
+        try:
+            msg = json.loads(bytes(packet.data).decode("utf-8"))
+        except Exception:
+            return
+        if msg.get("type") != "teacher_text_input":
+            return
+        text = (msg.get("text") or "").strip()
+        if not text:
+            return
+
+        async def _handle():
+            await _write_transcript(agent.db_session_id, "teacher", text, "text")
+            session.generate_reply(user_input=text)
+
+        asyncio.create_task(_handle())
+
+    # 阻塞 entrypoint 直到房間斷線，維持 job 存活
+    disconnected: asyncio.Future = asyncio.Future()
+
+    @ctx.room.on("disconnected")
+    def _on_disconnected(*_args):
+        if not disconnected.done():
+            disconnected.set_result(None)
+
+    await disconnected
+
 
 async def request_fnc(ctx: JobRequest):
     print(f"[Worker] received job request, room={ctx.room.name if ctx.room else 'unknown'}", flush=True)
     await ctx.accept()
     print(f"[Worker] job accepted", flush=True)
 
+
 AGENT_NAME = os.getenv("LIVEKIT_AGENT_NAME", "selfcorner-student")
 
 if __name__ == "__main__":
-    # 預設保留 idle 子進程以加快首個 job；Render Starter (512MB)
-    # 記憶體吃緊，可用 WORKER_NUM_IDLE_PROCESSES=0 關閉預熱。
-    num_idle = int(os.getenv("WORKER_NUM_IDLE_PROCESSES", "0"))
+    # RAM 已升級（Render Standard 2GB），可保留 idle 子進程預熱以加快首個 job。
+    num_idle = int(os.getenv("WORKER_NUM_IDLE_PROCESSES", "1"))
     cli.run_app(
         WorkerOptions(
             entrypoint_fnc=entrypoint,

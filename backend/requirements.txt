@@ -27,12 +27,14 @@ google-auth-oauthlib>=1.2.0
 # =============================================================================
 # LiveKit & Voice Pipeline
 # =============================================================================
-# 註：voice_pipeline.py 使用 raw websockets 直接呼叫 OpenAI Realtime API，
-# 沒用 livekit-plugins-openai 的 LLM/STT/TTS/VAD wrapper，
-# 因此不裝該套件以避免連帶預載 av / livekit-blingfire /
-# livekit-local-inference 等佔記憶體的依賴（Render Starter 512MB 太緊）。
+# voice_pipeline.py 使用官方 livekit-plugins-openai 的 RealtimeModel wrapper
+# （AgentSession + @function_tool）。此套件會連帶預載 av / livekit-blingfire 等
+# 較佔記憶體的依賴，故 worker 需跑在 Render Standard（2GB）以上方案。
+# 舊版手刻 raw-websockets 實作保留於 voice_pipeline_legacy.py 作為 fallback，
+# 其僅需 websockets，不需 livekit-plugins-openai。
 livekit>=0.17.0
 livekit-agents>=1.3.0
+livekit-plugins-openai>=1.3.0
 websockets>=12.0
 
 # =============================================================================
